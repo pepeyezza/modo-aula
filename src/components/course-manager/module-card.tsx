@@ -1,0 +1,255 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { toast } from "sonner";
+import {
+  Pencil, Trash2, Plus, ChevronDown, ChevronUp, FileText, ClipboardList,
+  MessageSquare, HelpCircle, Video, Link as LinkIcon, File as FileIcon, Eye, EyeOff,
+} from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  deleteModule, updateModule, deleteLesson, updateLesson, reorderLessons,
+} from "@/actions/courses.actions";
+import { deleteMaterial, toggleMaterialPublished } from "@/actions/materials.actions";
+import { deleteActivity } from "@/actions/activities.actions";
+import { deleteForum } from "@/actions/forums.actions";
+import { deleteQuiz, togglePublishQuiz } from "@/actions/quizzes.actions";
+import { formatDate } from "@/lib/utils";
+import type { ModuleFull } from "./types";
+import {
+  ModuleDialog, LessonDialog, MaterialDialog, ActivityDialog, ForumDialog, QuizDialog,
+} from "./dialogs";
+import { SubmissionsDialog } from "./submissions-dialog";
+import { QuizGradingDialog } from "./quiz-grading-dialog";
+
+const MATERIAL_ICON: Record<string, typeof FileText> = {
+  video: Video,
+  link: LinkIcon,
+  texto: FileText,
+};
+
+export function ModuleCard({ courseId, module: mod, index }: { courseId: string; module: ModuleFull; index: number }) {
+  const [editOpen, setEditOpen] = useState(false);
+  const [lessonDialogOpen, setLessonDialogOpen] = useState(false);
+  const [activityDialogOpen, setActivityDialogOpen] = useState(false);
+  const [forumDialogOpen, setForumDialogOpen] = useState(false);
+  const [quizDialogOpen, setQuizDialogOpen] = useState(false);
+  const [materialDialogLesson, setMaterialDialogLesson] = useState<string | null>(null);
+  const [submissionsFor, setSubmissionsFor] = useState<{ id: string; title: string; maxScore: number } | null>(null);
+  const [gradingQuiz, setGradingQuiz] = useState<{ id: string; title: string } | null>(null);
+  const [, startTransition] = useTransition();
+
+  return (
+    <Card className="p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--primary-soft)] text-xs font-semibold text-[var(--primary)]">
+              {index + 1}
+            </span>
+            <h3 className="font-semibold">{mod.title}</h3>
+            {!mod.published && <Badge variant="secondary">Oculto</Badge>}
+          </div>
+          {mod.description && <p className="mt-1 text-sm text-[var(--muted-foreground)]">{mod.description}</p>}
+        </div>
+        <div className="flex shrink-0 gap-1">
+          <Button size="icon" variant="ghost" onClick={() => setEditOpen(true)}><Pencil className="h-4 w-4" /></Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() =>
+              startTransition(async () => {
+                if (!confirm(`¿Eliminar el módulo "${mod.title}" y todo su contenido?`)) return;
+                await deleteModule(mod.id);
+                toast.success("Módulo eliminado");
+              })
+            }
+          >
+            <Trash2 className="h-4 w-4 text-[var(--danger)]" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Clases / lecciones */}
+      <div className="mt-4 space-y-2">
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">Clases</h4>
+          <Button size="sm" variant="ghost" onClick={() => setLessonDialogOpen(true)}><Plus className="h-3.5 w-3.5" /> Clase</Button>
+        </div>
+        {mod.lessons.length === 0 && <p className="text-xs text-[var(--muted-foreground)]">Sin clases todavía.</p>}
+        {mod.lessons.map((lesson, li) => (
+          <div key={lesson.id} className="rounded-lg border border-[var(--border)] p-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <span className="text-[var(--muted-foreground)]">{index + 1}.{li + 1}</span>
+                {lesson.title}
+                {lesson.isMandatory && <Badge variant="outline">Obligatoria</Badge>}
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  size="icon" variant="ghost"
+                  disabled={li === 0}
+                  onClick={() => startTransition(async () => {
+                    const ids = mod.lessons.map((l) => l.id);
+                    [ids[li - 1], ids[li]] = [ids[li], ids[li - 1]];
+                    await reorderLessons(mod.id, ids);
+                  })}
+                ><ChevronUp className="h-3.5 w-3.5" /></Button>
+                <Button
+                  size="icon" variant="ghost"
+                  disabled={li === mod.lessons.length - 1}
+                  onClick={() => startTransition(async () => {
+                    const ids = mod.lessons.map((l) => l.id);
+                    [ids[li + 1], ids[li]] = [ids[li], ids[li + 1]];
+                    await reorderLessons(mod.id, ids);
+                  })}
+                ><ChevronDown className="h-3.5 w-3.5" /></Button>
+                <Button size="sm" variant="ghost" onClick={() => setMaterialDialogLesson(lesson.id)}><Plus className="h-3.5 w-3.5" /> Material</Button>
+                <Button
+                  size="icon" variant="ghost"
+                  onClick={() => startTransition(async () => {
+                    if (!confirm(`¿Eliminar la clase "${lesson.title}"?`)) return;
+                    await deleteLesson(lesson.id);
+                  })}
+                ><Trash2 className="h-3.5 w-3.5 text-[var(--danger)]" /></Button>
+              </div>
+            </div>
+            {lesson.materials.length > 0 && (
+              <ul className="mt-2 space-y-1 pl-6">
+                {lesson.materials.map((mat) => {
+                  const Icon = MATERIAL_ICON[mat.type] ?? FileIcon;
+                  return (
+                    <li key={mat.id} className="flex items-center justify-between text-xs text-[var(--muted-foreground)]">
+                      <span className="flex items-center gap-1.5">
+                        <Icon className="h-3.5 w-3.5" /> {mat.title}
+                        {mat.isMandatory && <span className="text-[10px]">· obligatorio</span>}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <button onClick={() => startTransition(async () => toggleMaterialPublished(mat.id, !mat.published))}>
+                          {mat.published ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                        </button>
+                        <button onClick={() => startTransition(async () => { await deleteMaterial(mat.id); })}>
+                          <Trash2 className="h-3.5 w-3.5 text-[var(--danger)]" />
+                        </button>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Actividades */}
+      <ContentSection
+        title="Actividades" icon={ClipboardList}
+        onAdd={() => setActivityDialogOpen(true)}
+        empty={mod.activities.length === 0}
+      >
+        {mod.activities.map((a) => (
+          <li key={a.id} className="flex items-center justify-between rounded-lg border border-[var(--border)] px-3 py-2 text-sm">
+            <span>{a.title} {a.dueDate && <span className="text-xs text-[var(--muted-foreground)]">· entrega {formatDate(a.dueDate)}</span>}</span>
+            <span className="flex items-center gap-3">
+              <button className="text-xs font-medium text-[var(--primary)] hover:underline" onClick={() => setSubmissionsFor({ id: a.id, title: a.title, maxScore: a.maxScore })}>
+                Ver entregas
+              </button>
+              <button onClick={() => startTransition(async () => { await deleteActivity(a.id); })}>
+                <Trash2 className="h-3.5 w-3.5 text-[var(--danger)]" />
+              </button>
+            </span>
+          </li>
+        ))}
+      </ContentSection>
+
+      {/* Foros */}
+      <ContentSection title="Foros" icon={MessageSquare} onAdd={() => setForumDialogOpen(true)} empty={mod.forums.length === 0}>
+        {mod.forums.map((f) => (
+          <li key={f.id} className="flex items-center justify-between rounded-lg border border-[var(--border)] px-3 py-2 text-sm">
+            <span>{f.title} <span className="text-xs text-[var(--muted-foreground)]">· {f.posts.length} publicaciones</span></span>
+            <button onClick={() => startTransition(async () => { await deleteForum(f.id); })}>
+              <Trash2 className="h-3.5 w-3.5 text-[var(--danger)]" />
+            </button>
+          </li>
+        ))}
+      </ContentSection>
+
+      {/* Evaluaciones */}
+      <ContentSection title="Evaluaciones" icon={HelpCircle} onAdd={() => setQuizDialogOpen(true)} empty={mod.quizzes.length === 0}>
+        {mod.quizzes.map((q) => (
+          <li key={q.id} className="flex items-center justify-between rounded-lg border border-[var(--border)] px-3 py-2 text-sm">
+            <span>
+              {q.title}{" "}
+              <span className="text-xs text-[var(--muted-foreground)]">
+                · {q.quizQuestions.length} preguntas · {q.attemptsAllowed} intento(s){q.isFinalExam ? " · examen final" : ""}
+              </span>
+            </span>
+            <span className="flex items-center gap-3">
+              <button className="text-xs font-medium text-[var(--primary)] hover:underline" onClick={() => setGradingQuiz({ id: q.id, title: q.title })}>
+                Corregir
+              </button>
+              <Badge variant={q.published ? "success" : "secondary"} className="cursor-pointer" onClick={() => startTransition(async () => { await togglePublishQuiz(q.id, !q.published); })}>
+                {q.published ? "Publicada" : "Oculta"}
+              </Badge>
+              <button onClick={() => startTransition(async () => { await deleteQuiz(q.id); })}>
+                <Trash2 className="h-3.5 w-3.5 text-[var(--danger)]" />
+              </button>
+            </span>
+          </li>
+        ))}
+      </ContentSection>
+
+      <ModuleDialog open={editOpen} onOpenChange={setEditOpen} courseId={courseId} moduleData={mod} />
+      <LessonDialog open={lessonDialogOpen} onOpenChange={setLessonDialogOpen} moduleId={mod.id} />
+      <ActivityDialog open={activityDialogOpen} onOpenChange={setActivityDialogOpen} moduleId={mod.id} />
+      <ForumDialog open={forumDialogOpen} onOpenChange={setForumDialogOpen} moduleId={mod.id} />
+      <QuizDialog open={quizDialogOpen} onOpenChange={setQuizDialogOpen} moduleId={mod.id} courseId={courseId} />
+      <MaterialDialog
+        open={materialDialogLesson !== null}
+        onOpenChange={(v) => !v && setMaterialDialogLesson(null)}
+        lessonId={materialDialogLesson}
+      />
+      {submissionsFor && (
+        <SubmissionsDialog
+          open={!!submissionsFor}
+          onOpenChange={(v) => !v && setSubmissionsFor(null)}
+          activityId={submissionsFor.id}
+          activityTitle={submissionsFor.title}
+          maxScore={submissionsFor.maxScore}
+        />
+      )}
+      {gradingQuiz && (
+        <QuizGradingDialog
+          open={!!gradingQuiz}
+          onOpenChange={(v) => !v && setGradingQuiz(null)}
+          quizId={gradingQuiz.id}
+          quizTitle={gradingQuiz.title}
+        />
+      )}
+    </Card>
+  );
+}
+
+function ContentSection({
+  title, icon: Icon, onAdd, empty, children,
+}: {
+  title: string; icon: typeof FileText; onAdd: () => void; empty: boolean; children: React.ReactNode;
+}) {
+  return (
+    <div className="mt-4">
+      <div className="flex items-center justify-between">
+        <h4 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
+          <Icon className="h-3.5 w-3.5" /> {title}
+        </h4>
+        <Button size="sm" variant="ghost" onClick={onAdd}><Plus className="h-3.5 w-3.5" /> Agregar</Button>
+      </div>
+      {empty ? (
+        <p className="text-xs text-[var(--muted-foreground)]">Sin {title.toLowerCase()} todavía.</p>
+      ) : (
+        <ul className="mt-1.5 space-y-1.5">{children}</ul>
+      )}
+    </div>
+  );
+}

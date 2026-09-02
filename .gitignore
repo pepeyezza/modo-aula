@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# archivos subidos por usuarios en desarrollo local (driver de disco de
+# src/lib/storage.ts) — nunca se suben al repo; en producción sobre Vercel
+# se usa Vercel Blob en su lugar (ver BLOB_READ_WRITE_TOKEN en .env.example)
+/storage/uploads/*
+!/storage/uploads/.gitkeep
