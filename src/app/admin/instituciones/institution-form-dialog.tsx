@@ -57,7 +57,7 @@ export function InstitutionFormDialog({ open, onOpenChange }: { open: boolean; o
             <Label>Nombre de la institución</Label>
             <Input name="name" required autoFocus placeholder="Ej: Instituto de Capacitación Municipal" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5"><Label>Email de contacto (opcional)</Label><Input name="contactEmail" type="email" /></div>
             <div className="space-y-1.5"><Label>Teléfono de contacto (opcional)</Label><Input name="contactPhone" /></div>
           </div>
@@ -65,7 +65,7 @@ export function InstitutionFormDialog({ open, onOpenChange }: { open: boolean; o
           <div className="rounded-lg border border-[var(--border)] p-3">
             <p className="mb-3 text-sm font-medium">Cuenta de acceso de la institución</p>
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5"><Label>Nombre</Label><Input name="userFirstName" required /></div>
                 <div className="space-y-1.5"><Label>Apellido</Label><Input name="userLastName" required /></div>
               </div>

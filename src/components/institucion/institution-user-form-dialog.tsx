@@ -80,17 +80,17 @@ export function InstitutionUserFormDialog({
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
           <ImageUploadField name="avatarUrl" label="Foto de perfil (opcional)" defaultValue={user?.avatarUrl} round />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5"><Label>Nombre</Label><Input name="firstName" defaultValue={user?.firstName} required /></div>
             <div className="space-y-1.5"><Label>Apellido</Label><Input name="lastName" defaultValue={user?.lastName} required /></div>
           </div>
           <div className="space-y-1.5"><Label>Email</Label><Input name="email" type="email" defaultValue={user?.email} required /></div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5"><Label>DNI</Label><Input name="dni" defaultValue={user?.dni ?? ""} /></div>
             <div className="space-y-1.5"><Label>Teléfono</Label><Input name="phone" defaultValue={user?.phone ?? ""} /></div>
           </div>
           {role === "teacher" ? (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5"><Label>Especialidad</Label><Input name="specialty" defaultValue={user?.specialty ?? ""} /></div>
               <div className="space-y-1.5"><Label>Cargo</Label><Input name="position" defaultValue={user?.position ?? ""} /></div>
             </div>

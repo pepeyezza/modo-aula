@@ -16,7 +16,7 @@ type UserRow = {
   firstName: string;
   lastName: string;
   email: string;
-  role: "admin" | "teacher" | "student";
+  role: "admin" | "teacher" | "student" | "institution";
   institutionId?: string | null;
   dni: string | null;
   phone: string | null;
@@ -39,7 +39,7 @@ export function UserFormDialog({
   user: UserRow | null;
   institutions: { id: string; name: string }[];
 }) {
-  const [role, setRole] = useState<"admin" | "teacher" | "student">(user?.role ?? "student");
+  const [role, setRole] = useState<"admin" | "teacher" | "student" | "institution">(user?.role ?? "student");
   const [institutionId, setInstitutionId] = useState(user?.institutionId ?? "");
   const [loading, setLoading] = useState(false);
   const [, startTransition] = useTransition();
@@ -51,6 +51,10 @@ export function UserFormDialog({
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (role === "institution" && !institutionId) {
+      toast.error("Elegí a qué institución pertenece este Dueño.");
+      return;
+    }
     setLoading(true);
     const fd = new FormData(e.currentTarget);
     const payload = {
@@ -93,7 +97,7 @@ export function UserFormDialog({
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
           <ImageUploadField name="avatarUrl" label="Foto de perfil (opcional)" defaultValue={user?.avatarUrl} round />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Nombre</Label>
               <Input name="firstName" defaultValue={user?.firstName} required />
@@ -107,13 +111,14 @@ export function UserFormDialog({
             <Label>Email</Label>
             <Input name="email" type="email" defaultValue={user?.email} required />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Rol</Label>
               <Select value={role} onValueChange={(v) => setRole(v as typeof role)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="admin">Administrador</SelectItem>
+                  <SelectItem value="institution">Dueño / Propietario de institución</SelectItem>
                   <SelectItem value="teacher">Profesor / Capacitador</SelectItem>
                   <SelectItem value="student">Alumno</SelectItem>
                 </SelectContent>
@@ -126,20 +131,27 @@ export function UserFormDialog({
           </div>
           {role !== "admin" && (
             <div className="space-y-1.5">
-              <Label>Institución</Label>
+              <Label>Institución {role === "institution" && <span className="text-[var(--danger)]">*</span>}</Label>
               <Select value={institutionId || "none"} onValueChange={(v) => setInstitutionId(v === "none" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="Sin institución (independiente)" /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder={role === "institution" ? "Elegí una institución" : "Sin institución (independiente)"} />
+                </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Sin institución (independiente/plataforma)</SelectItem>
+                  {role !== "institution" && <SelectItem value="none">Sin institución (independiente/plataforma)</SelectItem>}
                   {institutions.map((i) => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}
+                  {institutions.length === 0 && (
+                    <p className="px-2 py-1.5 text-xs text-[var(--muted-foreground)]">Todavía no cargaste ninguna institución.</p>
+                  )}
                 </SelectContent>
               </Select>
               <p className="text-xs text-[var(--muted-foreground)]">
-                Si pertenece a una institución, va a ver únicamente los cursos y alumnos de esa institución.
+                {role === "institution"
+                  ? "Esta cuenta va a poder administrar programas, cursos, profesores y alumnos de la institución elegida."
+                  : "Si pertenece a una institución, va a ver únicamente los cursos y alumnos de esa institución."}
               </p>
             </div>
           )}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Teléfono</Label>
               <Input name="phone" defaultValue={user?.phone ?? ""} />
@@ -149,7 +161,7 @@ export function UserFormDialog({
               <Input name="organization" defaultValue={user?.organization ?? ""} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Cargo</Label>
               <Input name="position" defaultValue={user?.position ?? ""} />

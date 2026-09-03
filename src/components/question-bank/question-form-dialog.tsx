@@ -102,7 +102,7 @@ export function QuestionFormDialog({
             <Textarea name="text" required rows={2} />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Tipo de pregunta</Label>
               <Select value={type} onValueChange={(v) => { setType(v as keyof typeof TYPE_LABEL); resetOptionsForType(v as keyof typeof TYPE_LABEL); }}>
@@ -125,7 +125,7 @@ export function QuestionFormDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Tema</Label>
               <Input name="topic" placeholder="Ej: Presupuesto público" />

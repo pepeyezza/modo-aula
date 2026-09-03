@@ -25,7 +25,7 @@ type UserRow = {
   firstName: string;
   lastName: string;
   email: string;
-  role: "admin" | "teacher" | "student";
+  role: "admin" | "teacher" | "student" | "institution";
   institutionId?: string | null;
   institution?: { id: string; name: string } | null;
   active: boolean;
@@ -39,8 +39,8 @@ type UserRow = {
   avatarUrl?: string | null;
 };
 
-const ROLE_LABEL: Record<string, string> = { admin: "Administrador", teacher: "Profesor", student: "Alumno" };
-const ROLE_VARIANT: Record<string, "default" | "info" | "secondary"> = { admin: "default", teacher: "info", student: "secondary" };
+const ROLE_LABEL: Record<string, string> = { admin: "Administrador", institution: "Dueño / Institución", teacher: "Profesor", student: "Alumno" };
+const ROLE_VARIANT: Record<string, "default" | "info" | "secondary" | "warning"> = { admin: "default", institution: "warning", teacher: "info", student: "secondary" };
 
 export function UsersTable({ users, institutions }: { users: UserRow[]; institutions: { id: string; name: string }[] }) {
   const [query, setQuery] = useState("");
@@ -72,6 +72,7 @@ export function UsersTable({ users, institutions }: { users: UserRow[]; institut
             <SelectContent>
               <SelectItem value="todos">Todos los roles</SelectItem>
               <SelectItem value="admin">Administradores</SelectItem>
+              <SelectItem value="institution">Dueños / Instituciones</SelectItem>
               <SelectItem value="teacher">Profesores</SelectItem>
               <SelectItem value="student">Alumnos</SelectItem>
             </SelectContent>

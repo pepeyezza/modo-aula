@@ -35,7 +35,13 @@ export function Topbar({
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const profileHref =
-    user.role === "admin" ? "/admin/configuracion" : user.role === "teacher" ? "/profesor/perfil" : "/alumno/perfil";
+    user.role === "admin"
+      ? "/admin/configuracion"
+      : user.role === "teacher"
+        ? "/profesor/perfil"
+        : user.role === "institution"
+          ? "/institucion/perfil"
+          : "/alumno/perfil";
 
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-[var(--border)] bg-white px-4 sm:px-6">

@@ -1,12 +1,13 @@
 import "server-only";
 import { db, schema } from "@/db";
-import { eq, and, ne } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
-// Excluye las cuentas de login de las Instituciones: esas se administran
-// desde /admin/instituciones, no desde el listado general de usuarios.
+// Lista completa de usuarios de la plataforma, incluyendo las cuentas de
+// Dueño/Institución: se pueden crear/editar tanto desde acá como desde el
+// flujo dedicado de /admin/instituciones (que crea la institución junto con
+// su primera cuenta de acceso).
 export async function getAllUsers() {
   return db.query.users.findMany({
-    where: ne(schema.users.role, "institution"),
     with: { institution: true },
     orderBy: (u, { desc }) => [desc(u.createdAt)],
   });

@@ -48,11 +48,11 @@ export function ProfileForm({ user, showSpecialty = false }: { user: User; showS
   return (
     <form onSubmit={onSubmit} className="max-w-lg space-y-4">
       <ImageUploadField name="avatarUrl" label="Foto de perfil" defaultValue={user.avatarUrl} round />
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5"><Label>Teléfono</Label><Input name="phone" defaultValue={user.phone ?? ""} /></div>
         <div className="space-y-1.5"><Label>Área / organización</Label><Input name="organization" defaultValue={user.organization ?? ""} /></div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5"><Label>Cargo</Label><Input name="position" defaultValue={user.position ?? ""} /></div>
         {showSpecialty && <div className="space-y-1.5"><Label>Especialidad</Label><Input name="specialty" defaultValue={user.specialty ?? ""} /></div>}
       </div>

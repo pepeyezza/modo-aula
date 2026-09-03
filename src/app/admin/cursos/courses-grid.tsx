@@ -34,6 +34,7 @@ type CourseRow = {
   categoryId: string | null;
   programId: string | null;
   institution: string | null;
+  institutionId?: string | null;
   minAttendancePercent: number | null;
   passingScorePercent: number | null;
   category?: { name: string } | null;
@@ -49,14 +50,18 @@ export function CoursesGrid({
   basePath,
   isAdmin,
   currentTeacherId,
+  isSuperAdmin,
+  institutions,
 }: {
   courses: CourseRow[];
-  teachers: { id: string; firstName: string; lastName: string }[];
+  teachers: { id: string; firstName: string; lastName: string; institutionId?: string | null }[];
   categories: { id: string; name: string }[];
   programs: { id: string; name: string }[];
   basePath: string;
   isAdmin: boolean;
   currentTeacherId?: string;
+  isSuperAdmin?: boolean;
+  institutions?: { id: string; name: string }[];
 }) {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<CourseRow | null>(null);
@@ -88,6 +93,11 @@ export function CoursesGrid({
               <Link href={`${basePath}/cursos/${c.id}`} className="font-semibold hover:text-[var(--primary)] line-clamp-2">
                 {c.name}
               </Link>
+              {isSuperAdmin && (
+                <Badge variant="warning" className="w-fit">
+                  {institutions?.find((i) => i.id === c.institutionId)?.name ?? "Plataforma (sin institución)"}
+                </Badge>
+              )}
               <p className="text-xs text-[var(--muted-foreground)] line-clamp-2">{c.description}</p>
               <div className="mt-auto flex flex-wrap items-center gap-3 pt-2 text-xs text-[var(--muted-foreground)]">
                 <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> {formatDate(c.startDate)}</span>
@@ -156,6 +166,8 @@ export function CoursesGrid({
         programs={programs}
         isAdmin={isAdmin}
         currentTeacherId={currentTeacherId}
+        isSuperAdmin={isSuperAdmin}
+        institutions={institutions}
       />
     </div>
   );

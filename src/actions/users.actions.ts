@@ -12,7 +12,7 @@ const userSchema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   email: z.string().email(),
-  role: z.enum(["admin", "teacher", "student"]),
+  role: z.enum(["admin", "teacher", "student", "institution"]),
   institutionId: z.string().uuid().optional().or(z.literal("")),
   dni: z.string().optional(),
   phone: z.string().optional(),
@@ -49,6 +49,9 @@ async function resolveInstitutionId(
 ): Promise<string | null> {
   if (actor.role === "institution") return actor.institutionId ?? null;
   if (parsed.role === "admin") return null;
+  if (parsed.role === "institution" && !parsed.institutionId) {
+    throw new Error("Un Dueño/Propietario debe estar asignado a una institución.");
+  }
   if (!parsed.institutionId) return null;
   const institution = await db.query.institutions.findFirst({ where: eq(schema.institutions.id, parsed.institutionId) });
   if (!institution) throw new Error("La institución seleccionada no existe.");

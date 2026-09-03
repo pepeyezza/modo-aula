@@ -25,6 +25,7 @@ type CourseRow = {
   categoryId: string | null;
   programId: string | null;
   institution: string | null;
+  institutionId?: string | null;
   minAttendancePercent: number | null;
   passingScorePercent: number | null;
   teachers: { teacher: { id: string } }[];
@@ -44,21 +45,29 @@ export function CourseFormDialog({
   programs,
   isAdmin,
   currentTeacherId,
+  isSuperAdmin,
+  institutions,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   course: CourseRow | null;
-  teachers: { id: string; firstName: string; lastName: string }[];
+  teachers: { id: string; firstName: string; lastName: string; institutionId?: string | null }[];
   categories: { id: string; name: string }[];
   programs: { id: string; name: string }[];
   isAdmin: boolean;
   currentTeacherId?: string;
+  /** Solo true para el super admin de la plataforma: además de elegir
+   * profesores, puede elegir a qué institución pertenece el curso (o
+   * dejarlo como curso de plataforma, sin institución). */
+  isSuperAdmin?: boolean;
+  institutions?: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [modality, setModality] = useState(course?.modality ?? "virtual");
   const [categoryId, setCategoryId] = useState(course?.categoryId ?? "");
   const [programId, setProgramId] = useState(course?.programId ?? "");
+  const [courseInstitutionId, setCourseInstitutionId] = useState(course?.institutionId ?? "");
   const [selectedTeachers, setSelectedTeachers] = useState<string[]>(
     course?.teachers.map((t) => t.teacher.id) ?? (currentTeacherId ? [currentTeacherId] : [])
   );
@@ -68,8 +77,15 @@ export function CourseFormDialog({
     setModality(course?.modality ?? "virtual");
     setCategoryId(course?.categoryId ?? "");
     setProgramId(course?.programId ?? "");
+    setCourseInstitutionId(course?.institutionId ?? "");
     setSelectedTeachers(course?.teachers.map((t) => t.teacher.id) ?? (currentTeacherId ? [currentTeacherId] : []));
   }, [course, open, currentTeacherId]);
+
+  // Cuando el super admin elige institución, solo ofrecemos profesores de
+  // esa institución (más los "independientes" si no eligió ninguna).
+  const visibleTeachers = isSuperAdmin && courseInstitutionId
+    ? teachers.filter((t) => t.institutionId === courseInstitutionId)
+    : teachers;
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -87,6 +103,7 @@ export function CourseFormDialog({
       endDate: String(fd.get("endDate") || ""),
       capacity: fd.get("capacity") ? Number(fd.get("capacity")) : undefined,
       institution: String(fd.get("institution") || ""),
+      institutionId: isSuperAdmin ? courseInstitutionId : undefined,
       minAttendancePercent: Number(fd.get("minAttendancePercent") || 75),
       passingScorePercent: Number(fd.get("passingScorePercent") || 60),
       teacherIds: selectedTeachers,
@@ -123,11 +140,38 @@ export function CourseFormDialog({
           </div>
           <ImageUploadField name="imageUrl" label="Imagen de portada (opcional)" defaultValue={course?.imageUrl} />
 
+          {isSuperAdmin && (
+            <div className="space-y-1.5">
+              <Label>Institución</Label>
+              <Select
+                value={courseInstitutionId || "none"}
+                onValueChange={(v) => {
+                  const next = v === "none" ? "" : v;
+                  setCourseInstitutionId(next);
+                  // al cambiar de institución, sacamos de la selección a los
+                  // profesores que ya no pertenecen a la nueva institución
+                  setSelectedTeachers((prev) =>
+                    prev.filter((id) => teachers.find((t) => t.id === id)?.institutionId === (next || null) || !next)
+                  );
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder="Curso de plataforma (sin institución)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Curso de plataforma (sin institución)</SelectItem>
+                  {(institutions ?? []).map((i) => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-[var(--muted-foreground)]">
+                Si lo asignás a una institución, solo esa institución y sus profesores van a poder gestionarlo.
+              </p>
+            </div>
+          )}
+
           {isAdmin && (
             <div className="space-y-1.5">
               <Label>Profesores / capacitadores</Label>
               <div className="flex flex-wrap gap-2 rounded-lg border border-[var(--border)] p-2">
-                {teachers.map((t) => {
+                {visibleTeachers.map((t) => {
                   const checked = selectedTeachers.includes(t.id);
                   return (
                     <button
@@ -142,12 +186,16 @@ export function CourseFormDialog({
                     </button>
                   );
                 })}
-                {teachers.length === 0 && <p className="text-xs text-[var(--muted-foreground)]">No hay profesores cargados todavía.</p>}
+                {visibleTeachers.length === 0 && (
+                  <p className="text-xs text-[var(--muted-foreground)]">
+                    {isSuperAdmin && courseInstitutionId ? "Esa institución todavía no tiene profesores cargados." : "No hay profesores cargados todavía."}
+                  </p>
+                )}
               </div>
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Modalidad</Label>
               <Select value={modality} onValueChange={setModality}>
@@ -165,7 +213,7 @@ export function CourseFormDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Fecha de inicio</Label>
               <Input name="startDate" type="date" defaultValue={toInputDate(course?.startDate ?? null)} />
@@ -176,7 +224,7 @@ export function CourseFormDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Categoría / área</Label>
               <Select value={categoryId || "none"} onValueChange={(v) => setCategoryId(v === "none" ? "" : v)}>
@@ -199,7 +247,7 @@ export function CourseFormDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Cupos (opcional)</Label>
               <Input name="capacity" type="number" min={0} defaultValue={course?.capacity ?? ""} />
@@ -210,7 +258,7 @@ export function CourseFormDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>% asistencia mínima requerida</Label>
               <Input name="minAttendancePercent" type="number" min={0} max={100} defaultValue={course?.minAttendancePercent ?? 75} />

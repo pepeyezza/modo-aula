@@ -47,7 +47,7 @@ export function ActivityDialog({ open, onOpenChange, moduleId }: { open: boolean
             <Label>Consigna / instrucciones</Label>
             <Textarea name="instructions" rows={3} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Fecha de entrega</Label>
               <Input name="dueDate" type="date" />

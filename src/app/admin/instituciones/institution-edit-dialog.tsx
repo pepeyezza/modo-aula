@@ -69,7 +69,7 @@ export function InstitutionEditDialog({
         <form onSubmit={onSubmit} className="max-h-[70vh] space-y-4 overflow-y-auto pr-1">
           <ImageUploadField name="logoUrl" label="Logo (opcional)" defaultValue={institution.logoUrl} />
           <div className="space-y-1.5"><Label>Nombre de la institución</Label><Input name="name" defaultValue={institution.name} required /></div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5"><Label>Email de contacto</Label><Input name="contactEmail" type="email" defaultValue={institution.contactEmail ?? ""} /></div>
             <div className="space-y-1.5"><Label>Teléfono de contacto</Label><Input name="contactPhone" defaultValue={institution.contactPhone ?? ""} /></div>
           </div>
@@ -78,7 +78,7 @@ export function InstitutionEditDialog({
             <div className="rounded-lg border border-[var(--border)] p-3">
               <p className="mb-3 text-sm font-medium">Cuenta de acceso de la institución</p>
               <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5"><Label>Nombre</Label><Input name="userFirstName" defaultValue={institution.loginUser.firstName} required /></div>
                   <div className="space-y-1.5"><Label>Apellido</Label><Input name="userLastName" defaultValue={institution.loginUser.lastName} required /></div>
                 </div>

@@ -20,6 +20,7 @@ const courseSchema = z.object({
   endDate: z.string().optional(),
   capacity: z.coerce.number().optional(),
   institution: z.string().optional(),
+  institutionId: z.string().uuid().optional().or(z.literal("")),
   minAttendancePercent: z.coerce.number().min(0).max(100).optional(),
   passingScorePercent: z.coerce.number().min(0).max(100).optional(),
   teacherIds: z.array(z.string().uuid()).optional(),
@@ -37,6 +38,20 @@ async function sanitizeTeacherIds(user: { role: string; institutionId?: string |
   return teacherIds.filter((id) => validIds.has(id));
 }
 
+// Solo el Administrador general puede elegir a qué institución pertenece un
+// curso (una Institución o un Profesor con institución siempre quedan
+// atados a la propia).
+async function resolveCourseInstitutionId(
+  user: { role: string; institutionId?: string | null },
+  requestedInstitutionId?: string
+): Promise<string | null> {
+  if (user.role !== "admin") return user.institutionId ?? null;
+  if (!requestedInstitutionId) return null;
+  const institution = await db.query.institutions.findFirst({ where: eq(schema.institutions.id, requestedInstitutionId) });
+  if (!institution) throw new Error("La institución seleccionada no existe.");
+  return institution.id;
+}
+
 export async function createCourse(input: z.infer<typeof courseSchema>) {
   try {
     const user = await requireRole("admin", "teacher", "institution");
@@ -49,6 +64,8 @@ export async function createCourse(input: z.infer<typeof courseSchema>) {
       slug = `${baseSlug}-${++i}`;
     }
 
+    const institutionId = await resolveCourseInstitutionId(user, parsed.institutionId);
+
     const [course] = await db
       .insert(schema.courses)
       .values({
@@ -58,7 +75,7 @@ export async function createCourse(input: z.infer<typeof courseSchema>) {
         imageUrl: parsed.imageUrl,
         categoryId: parsed.categoryId || null,
         programId: parsed.programId || null,
-        institutionId: user.institutionId ?? null,
+        institutionId,
         modality: parsed.modality,
         durationHours: parsed.durationHours,
         startDate: parsed.startDate ? new Date(parsed.startDate) : null,
@@ -92,7 +109,15 @@ export async function updateCourse(courseId: string, input: Partial<z.infer<type
     await assertCourseAccess(user, courseId);
 
     const parsed = courseSchema.partial().parse(input);
-    const { teacherIds, ...rest } = parsed;
+    const { teacherIds, institutionId: rawInstitutionId, ...rest } = parsed;
+
+    // Solo el admin puede reasignar la institución de un curso existente;
+    // para una Institución/Profesor este campo no viaja desde el form, así
+    // que no tocamos institutionId salvo que sea un admin quien lo mande.
+    const institutionId =
+      user.role === "admin" && rawInstitutionId !== undefined
+        ? await resolveCourseInstitutionId(user, rawInstitutionId)
+        : undefined;
 
     await db
       .update(schema.courses)
@@ -100,6 +125,7 @@ export async function updateCourse(courseId: string, input: Partial<z.infer<type
         ...rest,
         categoryId: rest.categoryId || undefined,
         programId: rest.programId || undefined,
+        ...(institutionId !== undefined ? { institutionId } : {}),
         startDate: parsed.startDate ? new Date(parsed.startDate) : undefined,
         endDate: parsed.endDate ? new Date(parsed.endDate) : undefined,
         updatedAt: new Date(),
