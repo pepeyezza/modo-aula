@@ -94,8 +94,9 @@ export function InstitutionUsersTable({ users, role }: { users: UserRow[]; role:
                     <DropdownMenuItem
                       onClick={() =>
                         startTransition(async () => {
-                          await setUserActive(u.id, !u.active);
-                          toast.success(u.active ? "Cuenta desactivada" : "Cuenta activada");
+                          const result = await setUserActive(u.id, !u.active);
+                          if (!result.ok) toast.error(result.error);
+                          else toast.success(u.active ? "Cuenta desactivada" : "Cuenta activada");
                         })
                       }
                     >

@@ -93,13 +93,9 @@ export function CourseFormDialog({
     };
 
     try {
-      if (course) {
-        await updateCourse(course.id, payload);
-        toast.success("Curso actualizado");
-      } else {
-        await createCourse(payload);
-        toast.success("Curso creado como borrador");
-      }
+      const result = course ? await updateCourse(course.id, payload) : await createCourse(payload);
+      if (!result.ok) throw new Error(result.error);
+      toast.success(course ? "Curso actualizado" : "Curso creado como borrador");
       onOpenChange(false);
       router.refresh();
     } catch (err) {

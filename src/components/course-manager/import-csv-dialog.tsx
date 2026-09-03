@@ -17,8 +17,9 @@ export function ImportCsvDialog({ open, onOpenChange, courseId }: { open: boolea
     try {
       const text = await file.text();
       const res = await bulkImportAndEnroll(courseId, text);
-      setResult(res);
-      toast.success(`Importación completa: ${res.enrolled} inscriptos, ${res.created} usuarios nuevos.`);
+      if (!res.ok) throw new Error(res.error);
+      setResult(res.results);
+      toast.success(`Importación completa: ${res.results.enrolled} inscriptos, ${res.results.created} usuarios nuevos.`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al importar");
     } finally {

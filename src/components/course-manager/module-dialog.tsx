@@ -24,13 +24,11 @@ export function ModuleDialog({
     const title = String(fd.get("title"));
     const description = String(fd.get("description") || "");
     try {
-      if (moduleData) {
-        await updateModule(moduleData.id, { title, description });
-        toast.success("Módulo actualizado");
-      } else {
-        await createModule(courseId, title, description);
-        toast.success("Módulo creado");
-      }
+      const result = moduleData
+        ? await updateModule(moduleData.id, { title, description })
+        : await createModule(courseId, title, description);
+      if (!result.ok) throw new Error(result.error);
+      toast.success(moduleData ? "Módulo actualizado" : "Módulo creado");
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error");

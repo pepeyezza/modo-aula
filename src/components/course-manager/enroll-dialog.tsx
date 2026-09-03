@@ -29,14 +29,9 @@ export function EnrollDialog({
 
   async function enroll(id: string) {
     setLoading(id);
-    try {
-      await enrollStudent(courseId, id);
-      toast.success("Alumno inscripto");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error");
-    } finally {
-      setLoading(null);
-    }
+    const result = await enrollStudent(courseId, id);
+    if (!result.ok) toast.error(result.error); else toast.success("Alumno inscripto");
+    setLoading(null);
   }
 
   return (

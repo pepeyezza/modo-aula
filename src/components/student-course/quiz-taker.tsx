@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { startQuizAttempt, submitQuizAttempt } from "@/actions/quizzes.actions";
 
-type QuizData = Awaited<ReturnType<typeof startQuizAttempt>>;
+type QuizData = Extract<Awaited<ReturnType<typeof startQuizAttempt>>, { ok: true }>;
 type Question = QuizData["questions"][number];
 
 type AnswerState = {
@@ -29,12 +29,11 @@ export function QuizTaker({ courseId, quizId }: { courseId: string; quizId: stri
   const submittedRef = useRef(false);
 
   useEffect(() => {
-    startQuizAttempt(quizId)
-      .then((data) => {
-        setQuiz(data);
-        if (data.timeLimitMinutes) setSecondsLeft(data.timeLimitMinutes * 60);
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : "No se pudo iniciar la evaluación"));
+    startQuizAttempt(quizId).then((data) => {
+      if (!data.ok) { setError(data.error); return; }
+      setQuiz(data);
+      if (data.timeLimitMinutes) setSecondsLeft(data.timeLimitMinutes * 60);
+    });
   }, [quizId]);
 
   useEffect(() => {
@@ -55,6 +54,7 @@ export function QuizTaker({ courseId, quizId }: { courseId: string; quizId: stri
     try {
       const payload = quiz.questions.map((q) => ({ questionId: q.id, ...answers[q.id] }));
       const result = await submitQuizAttempt(quiz.attemptId, courseId, payload);
+      if (!result.ok) throw new Error(result.error);
       toast.success(
         result.pendingManualGrading
           ? "Evaluación entregada. Algunas respuestas requieren corrección manual."

@@ -17,7 +17,8 @@ export function LessonDialog({ open, onOpenChange, moduleId }: { open: boolean; 
     setLoading(true);
     const fd = new FormData(e.currentTarget);
     try {
-      await createLesson(moduleId, String(fd.get("title")), String(fd.get("description") || ""));
+      const result = await createLesson(moduleId, String(fd.get("title")), String(fd.get("description") || ""));
+      if (!result.ok) throw new Error(result.error);
       toast.success("Clase creada");
       onOpenChange(false);
     } catch (err) {

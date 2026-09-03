@@ -58,13 +58,9 @@ export function InstitutionUserFormDialog({
     };
 
     try {
-      if (user) {
-        await updateUser(user.id, payload);
-        toast.success("Datos actualizados");
-      } else {
-        await createUser(payload);
-        toast.success("Cuenta creada. Contraseña temporal: Capacita2026!");
-      }
+      const result = user ? await updateUser(user.id, payload) : await createUser(payload);
+      if (!result.ok) throw new Error(result.error);
+      toast.success(user ? "Datos actualizados" : "Cuenta creada. Contraseña temporal: Capacita2026!");
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Ocurrió un error");

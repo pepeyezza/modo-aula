@@ -1,3 +1,5 @@
+import { eq } from "drizzle-orm";
+import { db, schema } from "@/db";
 import { getAllUsers } from "@/data/users";
 import { UsersTable } from "./users-table";
 
@@ -5,9 +7,12 @@ export default async function UsuariosPage() {
   // getAllUsers() ya excluye las cuentas de Institución (se administran
   // desde /admin/instituciones), pero el tipo de la columna `role` en la
   // base sigue incluyendo ese valor — lo acotamos acá para la UI.
-  const users = (await getAllUsers()) as (Awaited<ReturnType<typeof getAllUsers>>[number] & {
-    role: "admin" | "teacher" | "student";
-  })[];
+  const [users, institutions] = await Promise.all([
+    getAllUsers() as Promise<
+      (Awaited<ReturnType<typeof getAllUsers>>[number] & { role: "admin" | "teacher" | "student" })[]
+    >,
+    db.query.institutions.findMany({ where: eq(schema.institutions.active, true), orderBy: (i, { asc }) => [asc(i.name)] }),
+  ]);
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -18,7 +23,7 @@ export default async function UsuariosPage() {
           </p>
         </div>
       </div>
-      <UsersTable users={users} />
+      <UsersTable users={users} institutions={institutions} />
     </div>
   );
 }

@@ -104,12 +104,18 @@ export function CoursesGrid({
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={() => { setEditing(c); setFormOpen(true); }}>Editar datos</DropdownMenuItem>
                     {isAdmin && c.status !== "publicado" && (
-                      <DropdownMenuItem onClick={() => startTransition(async () => { await setCourseStatus(c.id, "publicado"); toast.success("Curso publicado"); })}>
+                      <DropdownMenuItem onClick={() => startTransition(async () => {
+                        const result = await setCourseStatus(c.id, "publicado");
+                        if (!result.ok) toast.error(result.error); else toast.success("Curso publicado");
+                      })}>
                         <CheckCircle2 className="h-4 w-4" /> Publicar
                       </DropdownMenuItem>
                     )}
                     {isAdmin && c.status === "publicado" && (
-                      <DropdownMenuItem onClick={() => startTransition(async () => { await setCourseStatus(c.id, "archivado"); toast.success("Curso archivado"); })}>
+                      <DropdownMenuItem onClick={() => startTransition(async () => {
+                        const result = await setCourseStatus(c.id, "archivado");
+                        if (!result.ok) toast.error(result.error); else toast.success("Curso archivado");
+                      })}>
                         <Archive className="h-4 w-4" /> Archivar
                       </DropdownMenuItem>
                     )}
@@ -120,8 +126,8 @@ export function CoursesGrid({
                           className="text-[var(--danger)]"
                           onClick={() => startTransition(async () => {
                             if (!confirm(`¿Eliminar "${c.name}"? Esta acción no se puede deshacer.`)) return;
-                            await deleteCourse(c.id);
-                            toast.success("Curso eliminado");
+                            const result = await deleteCourse(c.id);
+                            if (!result.ok) toast.error(result.error); else toast.success("Curso eliminado");
                           })}
                         >
                           <Trash2 className="h-4 w-4" /> Eliminar

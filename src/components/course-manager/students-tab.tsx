@@ -84,8 +84,8 @@ export function StudentsTab({ course, isAdmin }: { course: CourseFull; isAdmin: 
                       <DropdownMenuItem
                         key={value}
                         onClick={() => startTransition(async () => {
-                          await setEnrollmentStatus(e.id, value as EnrollmentStatus);
-                          toast.success("Estado actualizado");
+                          const result = await setEnrollmentStatus(e.id, value as EnrollmentStatus);
+                          if (!result.ok) toast.error(result.error); else toast.success("Estado actualizado");
                         })}
                       >
                         Marcar: {label}
@@ -96,8 +96,8 @@ export function StudentsTab({ course, isAdmin }: { course: CourseFull; isAdmin: 
                         className="text-[var(--danger)]"
                         onClick={() => startTransition(async () => {
                           if (!confirm("¿Retirar a este alumno del curso?")) return;
-                          await withdrawEnrollment(e.id);
-                          toast.success("Alumno retirado");
+                          const result = await withdrawEnrollment(e.id);
+                          if (!result.ok) toast.error(result.error); else toast.success("Alumno retirado");
                         })}
                       >
                         Retirar del curso

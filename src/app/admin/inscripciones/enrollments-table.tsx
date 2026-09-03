@@ -105,7 +105,10 @@ export function EnrollmentsTable({ enrollments, courses }: { enrollments: Enroll
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     {Object.entries(STATUS_LABEL).map(([value, label]) => (
-                      <DropdownMenuItem key={value} onClick={() => startTransition(async () => { await setEnrollmentStatus(e.id, value as EnrollmentStatus); toast.success("Actualizado"); })}>
+                      <DropdownMenuItem key={value} onClick={() => startTransition(async () => {
+                        const result = await setEnrollmentStatus(e.id, value as EnrollmentStatus);
+                        if (!result.ok) toast.error(result.error); else toast.success("Actualizado");
+                      })}>
                         Marcar: {label}
                       </DropdownMenuItem>
                     ))}

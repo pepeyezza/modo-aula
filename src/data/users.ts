@@ -7,6 +7,7 @@ import { eq, and, ne } from "drizzle-orm";
 export async function getAllUsers() {
   return db.query.users.findMany({
     where: ne(schema.users.role, "institution"),
+    with: { institution: true },
     orderBy: (u, { desc }) => [desc(u.createdAt)],
   });
 }

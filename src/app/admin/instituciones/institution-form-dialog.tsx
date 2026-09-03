@@ -17,7 +17,7 @@ export function InstitutionFormDialog({ open, onOpenChange }: { open: boolean; o
     setLoading(true);
     const fd = new FormData(e.currentTarget);
     try {
-      await createInstitution({
+      const result = await createInstitution({
         institution: {
           name: String(fd.get("name")),
           logoUrl: String(fd.get("logoUrl") || ""),
@@ -31,6 +31,7 @@ export function InstitutionFormDialog({ open, onOpenChange }: { open: boolean; o
           password: String(fd.get("userPassword") || "") || undefined,
         },
       });
+      if (!result.ok) throw new Error(result.error);
       toast.success("Institución creada. Contraseña temporal: Capacita2026! (si no indicaste una)");
       onOpenChange(false);
       (document.getElementById("institution-form") as HTMLFormElement)?.reset();

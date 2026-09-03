@@ -63,13 +63,16 @@ export function ProgramsGrid({
                 </div>
                 {canManage && (
                   <div className="flex gap-1">
-                    <button onClick={() => startTransition(async () => { await setProgramPublished(p.id, !p.published); })}>
+                    <button onClick={() => startTransition(async () => {
+                      const result = await setProgramPublished(p.id, !p.published);
+                      if (!result.ok) toast.error(result.error);
+                    })}>
                       {p.published ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                     </button>
                     <button onClick={() => startTransition(async () => {
                       if (!confirm(`¿Eliminar el programa "${p.name}"?`)) return;
-                      await deleteProgram(p.id);
-                      toast.success("Programa eliminado");
+                      const result = await deleteProgram(p.id);
+                      if (!result.ok) toast.error(result.error); else toast.success("Programa eliminado");
                     })}>
                       <Trash2 className="h-4 w-4 text-[var(--danger)]" />
                     </button>

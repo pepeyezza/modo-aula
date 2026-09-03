@@ -26,6 +26,8 @@ type UserRow = {
   lastName: string;
   email: string;
   role: "admin" | "teacher" | "student";
+  institutionId?: string | null;
+  institution?: { id: string; name: string } | null;
   active: boolean;
   dni: string | null;
   phone: string | null;
@@ -40,7 +42,7 @@ type UserRow = {
 const ROLE_LABEL: Record<string, string> = { admin: "Administrador", teacher: "Profesor", student: "Alumno" };
 const ROLE_VARIANT: Record<string, "default" | "info" | "secondary"> = { admin: "default", teacher: "info", student: "secondary" };
 
-export function UsersTable({ users }: { users: UserRow[] }) {
+export function UsersTable({ users, institutions }: { users: UserRow[]; institutions: { id: string; name: string }[] }) {
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("todos");
   const [formOpen, setFormOpen] = useState(false);
@@ -85,6 +87,7 @@ export function UsersTable({ users }: { users: UserRow[] }) {
           <TableRow>
             <TableHead>Usuario</TableHead>
             <TableHead>Rol</TableHead>
+            <TableHead>Institución</TableHead>
             <TableHead>Área / Organización</TableHead>
             <TableHead>Estado</TableHead>
             <TableHead className="w-10" />
@@ -106,6 +109,7 @@ export function UsersTable({ users }: { users: UserRow[] }) {
                 </div>
               </TableCell>
               <TableCell><Badge variant={ROLE_VARIANT[u.role]}>{ROLE_LABEL[u.role]}</Badge></TableCell>
+              <TableCell className="text-sm text-[var(--muted-foreground)]">{u.institution?.name ?? "—"}</TableCell>
               <TableCell className="text-sm text-[var(--muted-foreground)]">{u.organization || u.area || "-"}</TableCell>
               <TableCell>
                 <Badge variant={u.active ? "success" : "secondary"}>{u.active ? "Activo" : "Inactivo"}</Badge>
@@ -122,8 +126,9 @@ export function UsersTable({ users }: { users: UserRow[] }) {
                     <DropdownMenuItem
                       onClick={() =>
                         startTransition(async () => {
-                          await setUserActive(u.id, !u.active);
-                          toast.success(u.active ? "Usuario desactivado" : "Usuario activado");
+                          const result = await setUserActive(u.id, !u.active);
+                          if (!result.ok) toast.error(result.error);
+                          else toast.success(u.active ? "Usuario desactivado" : "Usuario activado");
                         })
                       }
                     >
@@ -150,7 +155,7 @@ export function UsersTable({ users }: { users: UserRow[] }) {
           ))}
           {filtered.length === 0 && (
             <TableRow>
-              <TableCell colSpan={5} className="py-8 text-center text-sm text-[var(--muted-foreground)]">
+              <TableCell colSpan={6} className="py-8 text-center text-sm text-[var(--muted-foreground)]">
                 No se encontraron usuarios.
               </TableCell>
             </TableRow>
@@ -158,7 +163,7 @@ export function UsersTable({ users }: { users: UserRow[] }) {
         </TableBody>
       </Table>
 
-      <UserFormDialog open={formOpen} onOpenChange={setFormOpen} user={editing} />
+      <UserFormDialog open={formOpen} onOpenChange={setFormOpen} user={editing} institutions={institutions} />
     </div>
   );
 }

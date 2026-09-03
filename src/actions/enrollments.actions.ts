@@ -8,113 +8,134 @@ import { requireRole } from "@/lib/auth-helpers";
 import { hashPassword } from "@/lib/password";
 import { notify } from "@/lib/notifications";
 import { logActivity } from "@/lib/audit";
+import { assertCourseAccess } from "./courses.actions";
 
 type Actor = { id: string; role: string; institutionId?: string | null };
 
+// El "espacio" de alumnos de un actor: el de su institución si pertenece a
+// una (Institución, o Profesor que trabaja para una); null = sin acotar
+// (Administrador general, o profesor independiente sin institución).
+function actorStudentScope(actor: Actor): string | null {
+  if (actor.role === "institution") return actor.institutionId ?? null;
+  if (actor.role === "teacher" && actor.institutionId) return actor.institutionId;
+  return null;
+}
+
 async function assertEnrollmentAccess(actor: Actor, enrollmentId: string) {
   if (actor.role === "admin") return;
-  if (actor.role !== "institution") return; // el resto ya está cubierto por requireRole
-  const enrollment = await db.query.enrollments.findFirst({
-    where: eq(schema.enrollments.id, enrollmentId),
-    with: { course: true },
-  });
-  if (!enrollment || enrollment.course.institutionId !== actor.institutionId) {
-    throw new Error("No tenés permisos sobre esta inscripción.");
-  }
+  const enrollment = await db.query.enrollments.findFirst({ where: eq(schema.enrollments.id, enrollmentId) });
+  if (!enrollment) throw new Error("Inscripción no encontrada.");
+  await assertCourseAccess(actor, enrollment.courseId);
 }
 
 export async function listAllStudents() {
   const actor = await requireRole("admin", "teacher", "institution");
+  const scope = actorStudentScope(actor);
   return db.query.users.findMany({
-    where:
-      actor.role === "institution"
-        ? and(eq(schema.users.role, "student"), eq(schema.users.institutionId, actor.institutionId ?? ""))
-        : eq(schema.users.role, "student"),
+    where: scope
+      ? and(eq(schema.users.role, "student"), eq(schema.users.institutionId, scope))
+      : eq(schema.users.role, "student"),
     orderBy: (u, { asc }) => [asc(u.firstName)],
   });
 }
 
 export async function enrollStudent(courseId: string, userId: string) {
-  const actor = await requireRole("admin", "teacher", "institution");
+  try {
+    const actor = await requireRole("admin", "teacher", "institution");
+    await assertCourseAccess(actor, courseId);
 
-  if (actor.role === "institution") {
+    const scope = actorStudentScope(actor);
+    if (scope) {
+      const student = await db.query.users.findFirst({ where: eq(schema.users.id, userId) });
+      if (!student || student.institutionId !== scope) {
+        throw new Error("Ese alumno no pertenece a tu institución.");
+      }
+    }
+
+    const existing = await db.query.enrollments.findFirst({
+      where: and(eq(schema.enrollments.userId, userId), eq(schema.enrollments.courseId, courseId)),
+    });
+    if (existing) return { ok: true as const, enrollment: existing };
+
+    const [enrollment] = await db
+      .insert(schema.enrollments)
+      .values({ userId, courseId, status: "inscripto" })
+      .returning();
+
     const course = await db.query.courses.findFirst({ where: eq(schema.courses.id, courseId) });
-    const student = await db.query.users.findFirst({ where: eq(schema.users.id, userId) });
-    if (!course || course.institutionId !== actor.institutionId) {
-      throw new Error("No tenés permisos sobre este curso.");
-    }
-    if (!student || student.institutionId !== actor.institutionId) {
-      throw new Error("Ese alumno no pertenece a tu institución.");
-    }
+    await notify({
+      userId,
+      type: "inscripcion",
+      title: "Nueva inscripción",
+      message: `Fuiste inscripto/a en "${course?.name ?? "un curso"}".`,
+      link: `/alumno/cursos/${courseId}`,
+    });
+    await logActivity({ userId: actor.id, action: "enrollment_created", entityType: "enrollment", entityId: enrollment.id });
+    revalidatePath("/admin/inscripciones");
+    revalidatePath(`/admin/cursos/${courseId}`);
+    revalidatePath(`/institucion/cursos/${courseId}`);
+    return { ok: true as const, enrollment };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
   }
-
-  const existing = await db.query.enrollments.findFirst({
-    where: and(eq(schema.enrollments.userId, userId), eq(schema.enrollments.courseId, courseId)),
-  });
-  if (existing) return existing;
-
-  const [enrollment] = await db
-    .insert(schema.enrollments)
-    .values({ userId, courseId, status: "inscripto" })
-    .returning();
-
-  const course = await db.query.courses.findFirst({ where: eq(schema.courses.id, courseId) });
-  await notify({
-    userId,
-    type: "inscripcion",
-    title: "Nueva inscripción",
-    message: `Fuiste inscripto/a en "${course?.name ?? "un curso"}".`,
-    link: `/alumno/cursos/${courseId}`,
-  });
-  await logActivity({ userId: actor.id, action: "enrollment_created", entityType: "enrollment", entityId: enrollment.id });
-  revalidatePath("/admin/inscripciones");
-  revalidatePath(`/admin/cursos/${courseId}`);
-  revalidatePath(`/institucion/cursos/${courseId}`);
-  return enrollment;
 }
 
 export async function selfEnroll(courseId: string) {
-  const user = await requireRole("student");
-  const existing = await db.query.enrollments.findFirst({
-    where: and(eq(schema.enrollments.userId, user.id), eq(schema.enrollments.courseId, courseId)),
-  });
-  if (existing) return existing;
+  try {
+    const user = await requireRole("student");
+    const existing = await db.query.enrollments.findFirst({
+      where: and(eq(schema.enrollments.userId, user.id), eq(schema.enrollments.courseId, courseId)),
+    });
+    if (existing) return { ok: true as const, enrollment: existing };
 
-  const course = await db.query.courses.findFirst({
-    where: eq(schema.courses.id, courseId),
-    with: { enrollments: true },
-  });
-  if (!course) throw new Error("Curso no encontrado");
+    const course = await db.query.courses.findFirst({
+      where: eq(schema.courses.id, courseId),
+      with: { enrollments: true },
+    });
+    if (!course) throw new Error("Curso no encontrado");
 
-  const full = course.capacity != null && course.enrollments.length >= course.capacity;
+    const full = course.capacity != null && course.enrollments.length >= course.capacity;
 
-  const [enrollment] = await db
-    .insert(schema.enrollments)
-    .values({ userId: user.id, courseId, status: full ? "preinscripto" : "inscripto" })
-    .returning();
+    const [enrollment] = await db
+      .insert(schema.enrollments)
+      .values({ userId: user.id, courseId, status: full ? "preinscripto" : "inscripto" })
+      .returning();
 
-  await logActivity({ userId: user.id, action: "self_enrolled", entityType: "enrollment", entityId: enrollment.id });
-  revalidatePath("/alumno/cursos");
-  revalidatePath(`/catalogo/${course.slug}`);
-  return enrollment;
+    await logActivity({ userId: user.id, action: "self_enrolled", entityType: "enrollment", entityId: enrollment.id });
+    revalidatePath("/alumno/cursos");
+    revalidatePath(`/catalogo/${course.slug}`);
+    return { ok: true as const, enrollment };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
+  }
 }
 
 export async function withdrawEnrollment(enrollmentId: string) {
-  const actor = await requireRole("admin", "teacher", "institution");
-  await assertEnrollmentAccess(actor, enrollmentId);
-  await db.update(schema.enrollments).set({ status: "abandono" }).where(eq(schema.enrollments.id, enrollmentId));
-  await logActivity({ userId: actor.id, action: "enrollment_withdrawn", entityType: "enrollment", entityId: enrollmentId });
-  revalidatePath("/admin/inscripciones");
+  try {
+    const actor = await requireRole("admin", "teacher", "institution");
+    await assertEnrollmentAccess(actor, enrollmentId);
+    await db.update(schema.enrollments).set({ status: "abandono" }).where(eq(schema.enrollments.id, enrollmentId));
+    await logActivity({ userId: actor.id, action: "enrollment_withdrawn", entityType: "enrollment", entityId: enrollmentId });
+    revalidatePath("/admin/inscripciones");
+    return { ok: true as const };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
+  }
 }
 
 export async function setEnrollmentStatus(
   enrollmentId: string,
   status: (typeof schema.enrollmentStatusEnum.enumValues)[number]
 ) {
-  const actor = await requireRole("admin", "teacher", "institution");
-  await assertEnrollmentAccess(actor, enrollmentId);
-  await db.update(schema.enrollments).set({ status }).where(eq(schema.enrollments.id, enrollmentId));
-  revalidatePath("/admin/inscripciones");
+  try {
+    const actor = await requireRole("admin", "teacher", "institution");
+    await assertEnrollmentAccess(actor, enrollmentId);
+    await db.update(schema.enrollments).set({ status }).where(eq(schema.enrollments.id, enrollmentId));
+    revalidatePath("/admin/inscripciones");
+    return { ok: true as const };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
+  }
 }
 
 export async function deleteEnrollment(enrollmentId: string) {
@@ -126,16 +147,11 @@ export async function deleteEnrollment(enrollmentId: string) {
 type ImportRow = { nombre?: string; apellido?: string; email?: string; dni?: string };
 
 export async function bulkImportAndEnroll(courseId: string, csvText: string) {
-  const actor = await requireRole("admin", "institution");
+  try {
+    const actor = await requireRole("admin", "institution");
+    await assertCourseAccess(actor, courseId);
 
-  if (actor.role === "institution") {
-    const course = await db.query.courses.findFirst({ where: eq(schema.courses.id, courseId) });
-    if (!course || course.institutionId !== actor.institutionId) {
-      throw new Error("No tenés permisos sobre este curso.");
-    }
-  }
-
-  const parsed = Papa.parse<ImportRow>(csvText, { header: true, skipEmptyLines: true });
+    const parsed = Papa.parse<ImportRow>(csvText, { header: true, skipEmptyLines: true });
 
   const results = { created: 0, enrolled: 0, skipped: 0, errors: [] as string[] };
 
@@ -168,6 +184,10 @@ export async function bulkImportAndEnroll(courseId: string, csvText: string) {
         .returning();
       student = created;
       results.created++;
+    } else if (actor.role === "institution" && student.institutionId !== actor.institutionId) {
+      results.skipped++;
+      results.errors.push(`${row.email}: pertenece a otra institución, no se inscribió.`);
+      continue;
     }
 
     const existing = await db.query.enrollments.findFirst({
@@ -179,17 +199,20 @@ export async function bulkImportAndEnroll(courseId: string, csvText: string) {
     }
   }
 
-  await logActivity({
-    userId: actor.id,
-    action: "bulk_import_enrollments",
-    entityType: "course",
-    entityId: courseId,
-    metadata: results,
-  });
-  revalidatePath("/admin/inscripciones");
-  revalidatePath("/admin/usuarios");
-  revalidatePath(`/admin/cursos/${courseId}`);
-  revalidatePath(`/institucion/cursos/${courseId}`);
-  revalidatePath("/institucion/alumnos");
-  return results;
+    await logActivity({
+      userId: actor.id,
+      action: "bulk_import_enrollments",
+      entityType: "course",
+      entityId: courseId,
+      metadata: results,
+    });
+    revalidatePath("/admin/inscripciones");
+    revalidatePath("/admin/usuarios");
+    revalidatePath(`/admin/cursos/${courseId}`);
+    revalidatePath(`/institucion/cursos/${courseId}`);
+    revalidatePath("/institucion/alumnos");
+    return { ok: true as const, results };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
+  }
 }

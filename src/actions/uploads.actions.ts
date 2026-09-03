@@ -12,14 +12,18 @@ const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif", "im
 // *dónde* se termina usando esa URL la hace la Server Action que guarda el
 // curso/programa/perfil correspondiente.
 export async function uploadImage(formData: FormData) {
-  await requireUser();
-  const file = formData.get("file") as File | null;
-  if (!file || file.size === 0) throw new Error("No se seleccionó ningún archivo.");
-  if (file.size > MAX_SIZE_BYTES) throw new Error("La imagen no puede superar los 5MB.");
-  if (!ALLOWED_TYPES.includes(file.type)) {
-    throw new Error("Formato no soportado. Usá PNG, JPG, WEBP, GIF o SVG.");
-  }
+  try {
+    await requireUser();
+    const file = formData.get("file") as File | null;
+    if (!file || file.size === 0) throw new Error("No se seleccionó ningún archivo.");
+    if (file.size > MAX_SIZE_BYTES) throw new Error("La imagen no puede superar los 5MB.");
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      throw new Error("Formato no soportado. Usá PNG, JPG, WEBP, GIF o SVG.");
+    }
 
-  const saved = await saveFile(file, "imagenes");
-  return { url: saved.url };
+    const saved = await saveFile(file, "imagenes");
+    return { ok: true as const, url: saved.url };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
+  }
 }

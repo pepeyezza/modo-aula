@@ -1,7 +1,7 @@
 "use server";
 
 import { db, schema } from "@/db";
-import { ilike, or, eq } from "drizzle-orm";
+import { ilike, or, and, eq } from "drizzle-orm";
 import { requireUser } from "@/lib/auth-helpers";
 
 export async function globalSearch(query: string) {
@@ -9,8 +9,17 @@ export async function globalSearch(query: string) {
   const q = `%${query.trim()}%`;
   if (!query.trim()) return { courses: [], users: [], materials: [], certificates: [] };
 
+  // Una Institución (o un Profesor que trabaja para una) solo debe ver, en
+  // la búsqueda global, cursos de su propio espacio — no los de otros
+  // institutos de la plataforma.
+  const scopedInstitutionId =
+    user.role === "institution" || (user.role === "teacher" && user.institutionId) ? user.institutionId : null;
+
   const courses = await db.query.courses.findMany({
-    where: or(ilike(schema.courses.name, q), ilike(schema.courses.description, q)),
+    where: and(
+      or(ilike(schema.courses.name, q), ilike(schema.courses.description, q)),
+      scopedInstitutionId ? eq(schema.courses.institutionId, scopedInstitutionId) : undefined
+    ),
     limit: 8,
   });
 

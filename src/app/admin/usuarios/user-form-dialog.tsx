@@ -17,6 +17,7 @@ type UserRow = {
   lastName: string;
   email: string;
   role: "admin" | "teacher" | "student";
+  institutionId?: string | null;
   dni: string | null;
   phone: string | null;
   area: string | null;
@@ -31,17 +32,21 @@ export function UserFormDialog({
   open,
   onOpenChange,
   user,
+  institutions,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   user: UserRow | null;
+  institutions: { id: string; name: string }[];
 }) {
   const [role, setRole] = useState<"admin" | "teacher" | "student">(user?.role ?? "student");
+  const [institutionId, setInstitutionId] = useState(user?.institutionId ?? "");
   const [loading, setLoading] = useState(false);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
     setRole(user?.role ?? "student");
+    setInstitutionId(user?.institutionId ?? "");
   }, [user, open]);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -53,6 +58,7 @@ export function UserFormDialog({
       lastName: String(fd.get("lastName")),
       email: String(fd.get("email")),
       role,
+      institutionId: role === "admin" ? "" : institutionId,
       dni: String(fd.get("dni") || ""),
       phone: String(fd.get("phone") || ""),
       area: String(fd.get("area") || ""),
@@ -65,13 +71,9 @@ export function UserFormDialog({
     };
 
     try {
-      if (user) {
-        await updateUser(user.id, payload);
-        toast.success("Usuario actualizado");
-      } else {
-        await createUser(payload);
-        toast.success("Usuario creado. Contraseña temporal: Capacita2026!");
-      }
+      const result = user ? await updateUser(user.id, payload) : await createUser(payload);
+      if (!result.ok) throw new Error(result.error);
+      toast.success(user ? "Usuario actualizado" : "Usuario creado. Contraseña temporal: Capacita2026!");
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Ocurrió un error");
@@ -122,6 +124,21 @@ export function UserFormDialog({
               <Input name="dni" defaultValue={user?.dni ?? ""} />
             </div>
           </div>
+          {role !== "admin" && (
+            <div className="space-y-1.5">
+              <Label>Institución</Label>
+              <Select value={institutionId || "none"} onValueChange={(v) => setInstitutionId(v === "none" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Sin institución (independiente)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin institución (independiente/plataforma)</SelectItem>
+                  {institutions.map((i) => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-[var(--muted-foreground)]">
+                Si pertenece a una institución, va a ver únicamente los cursos y alumnos de esa institución.
+              </p>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Teléfono</Label>

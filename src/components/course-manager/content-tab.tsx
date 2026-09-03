@@ -27,7 +27,8 @@ export function ContentTab({ course }: { course: CourseFull }) {
     const newIndex = modules.findIndex((m) => m.id === over.id);
     const newOrder = arrayMove(modules, oldIndex, newIndex);
     setModules(newOrder);
-    await reorderModules(course.id, newOrder.map((m) => m.id));
+    const result = await reorderModules(course.id, newOrder.map((m) => m.id));
+    if (!result.ok) { toast.error(result.error); setModules(modules); return; }
     toast.success("Orden actualizado");
   }
 

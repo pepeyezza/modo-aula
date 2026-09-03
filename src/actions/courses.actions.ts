@@ -38,177 +38,257 @@ async function sanitizeTeacherIds(user: { role: string; institutionId?: string |
 }
 
 export async function createCourse(input: z.infer<typeof courseSchema>) {
-  const user = await requireRole("admin", "teacher", "institution");
-  const parsed = courseSchema.parse(input);
+  try {
+    const user = await requireRole("admin", "teacher", "institution");
+    const parsed = courseSchema.parse(input);
 
-  const baseSlug = slugify(parsed.name);
-  let slug = baseSlug;
-  let i = 1;
-  while (await db.query.courses.findFirst({ where: eq(schema.courses.slug, slug) })) {
-    slug = `${baseSlug}-${++i}`;
+    const baseSlug = slugify(parsed.name);
+    let slug = baseSlug;
+    let i = 1;
+    while (await db.query.courses.findFirst({ where: eq(schema.courses.slug, slug) })) {
+      slug = `${baseSlug}-${++i}`;
+    }
+
+    const [course] = await db
+      .insert(schema.courses)
+      .values({
+        name: parsed.name,
+        slug,
+        description: parsed.description,
+        imageUrl: parsed.imageUrl,
+        categoryId: parsed.categoryId || null,
+        programId: parsed.programId || null,
+        institutionId: user.institutionId ?? null,
+        modality: parsed.modality,
+        durationHours: parsed.durationHours,
+        startDate: parsed.startDate ? new Date(parsed.startDate) : null,
+        endDate: parsed.endDate ? new Date(parsed.endDate) : null,
+        capacity: parsed.capacity,
+        institution: parsed.institution,
+        minAttendancePercent: parsed.minAttendancePercent ?? 75,
+        passingScorePercent: parsed.passingScorePercent ?? 60,
+        status: "borrador",
+      })
+      .returning();
+
+    let teacherIds = parsed.teacherIds?.length ? parsed.teacherIds : user.role === "teacher" ? [user.id] : [];
+    teacherIds = await sanitizeTeacherIds(user, teacherIds);
+    if (teacherIds.length) {
+      await db.insert(schema.courseTeachers).values(teacherIds.map((teacherId) => ({ courseId: course.id, teacherId })));
+    }
+
+    await logActivity({ userId: user.id, action: "course_created", entityType: "course", entityId: course.id });
+    revalidatePath("/admin/cursos");
+    revalidatePath("/institucion/cursos");
+    return { ok: true as const, course };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
   }
-
-  const [course] = await db
-    .insert(schema.courses)
-    .values({
-      name: parsed.name,
-      slug,
-      description: parsed.description,
-      imageUrl: parsed.imageUrl,
-      categoryId: parsed.categoryId || null,
-      programId: parsed.programId || null,
-      institutionId: user.institutionId ?? null,
-      modality: parsed.modality,
-      durationHours: parsed.durationHours,
-      startDate: parsed.startDate ? new Date(parsed.startDate) : null,
-      endDate: parsed.endDate ? new Date(parsed.endDate) : null,
-      capacity: parsed.capacity,
-      institution: parsed.institution,
-      minAttendancePercent: parsed.minAttendancePercent ?? 75,
-      passingScorePercent: parsed.passingScorePercent ?? 60,
-      status: "borrador",
-    })
-    .returning();
-
-  let teacherIds = parsed.teacherIds?.length ? parsed.teacherIds : user.role === "teacher" ? [user.id] : [];
-  teacherIds = await sanitizeTeacherIds(user, teacherIds);
-  if (teacherIds.length) {
-    await db.insert(schema.courseTeachers).values(teacherIds.map((teacherId) => ({ courseId: course.id, teacherId })));
-  }
-
-  await logActivity({ userId: user.id, action: "course_created", entityType: "course", entityId: course.id });
-  revalidatePath("/admin/cursos");
-  revalidatePath("/institucion/cursos");
-  return course;
 }
 
 export async function updateCourse(courseId: string, input: Partial<z.infer<typeof courseSchema>>) {
-  const user = await requireRole("admin", "teacher", "institution");
-  await assertCourseAccess(user, courseId);
+  try {
+    const user = await requireRole("admin", "teacher", "institution");
+    await assertCourseAccess(user, courseId);
 
-  const parsed = courseSchema.partial().parse(input);
-  const { teacherIds, ...rest } = parsed;
+    const parsed = courseSchema.partial().parse(input);
+    const { teacherIds, ...rest } = parsed;
 
-  await db
-    .update(schema.courses)
-    .set({
-      ...rest,
-      categoryId: rest.categoryId || undefined,
-      programId: rest.programId || undefined,
-      startDate: parsed.startDate ? new Date(parsed.startDate) : undefined,
-      endDate: parsed.endDate ? new Date(parsed.endDate) : undefined,
-      updatedAt: new Date(),
-    })
-    .where(eq(schema.courses.id, courseId));
+    await db
+      .update(schema.courses)
+      .set({
+        ...rest,
+        categoryId: rest.categoryId || undefined,
+        programId: rest.programId || undefined,
+        startDate: parsed.startDate ? new Date(parsed.startDate) : undefined,
+        endDate: parsed.endDate ? new Date(parsed.endDate) : undefined,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.courses.id, courseId));
 
-  if (teacherIds) {
-    const sanitized = await sanitizeTeacherIds(user, teacherIds);
-    await db.delete(schema.courseTeachers).where(eq(schema.courseTeachers.courseId, courseId));
-    if (sanitized.length) {
-      await db.insert(schema.courseTeachers).values(sanitized.map((teacherId) => ({ courseId, teacherId })));
+    if (teacherIds) {
+      const sanitized = await sanitizeTeacherIds(user, teacherIds);
+      await db.delete(schema.courseTeachers).where(eq(schema.courseTeachers.courseId, courseId));
+      if (sanitized.length) {
+        await db.insert(schema.courseTeachers).values(sanitized.map((teacherId) => ({ courseId, teacherId })));
+      }
     }
-  }
 
-  await logActivity({ userId: user.id, action: "course_updated", entityType: "course", entityId: courseId });
-  revalidatePath("/admin/cursos");
-  revalidatePath(`/admin/cursos/${courseId}`);
-  revalidatePath(`/profesor/cursos/${courseId}`);
-  revalidatePath("/institucion/cursos");
-  revalidatePath(`/institucion/cursos/${courseId}`);
+    await logActivity({ userId: user.id, action: "course_updated", entityType: "course", entityId: courseId });
+    revalidatePath("/admin/cursos");
+    revalidatePath(`/admin/cursos/${courseId}`);
+    revalidatePath(`/profesor/cursos/${courseId}`);
+    revalidatePath("/institucion/cursos");
+    revalidatePath(`/institucion/cursos/${courseId}`);
+    return { ok: true as const };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
+  }
 }
 
 export async function setCourseStatus(courseId: string, status: "borrador" | "publicado" | "archivado") {
-  const user = await requireRole("admin", "institution");
-  await assertCourseAccess(user, courseId);
-  await db.update(schema.courses).set({ status, updatedAt: new Date() }).where(eq(schema.courses.id, courseId));
-  await logActivity({ userId: user.id, action: `course_${status}`, entityType: "course", entityId: courseId });
-  revalidatePath("/admin/cursos");
-  revalidatePath("/institucion/cursos");
+  try {
+    const user = await requireRole("admin", "institution");
+    await assertCourseAccess(user, courseId);
+    await db.update(schema.courses).set({ status, updatedAt: new Date() }).where(eq(schema.courses.id, courseId));
+    await logActivity({ userId: user.id, action: `course_${status}`, entityType: "course", entityId: courseId });
+    revalidatePath("/admin/cursos");
+    revalidatePath("/institucion/cursos");
+    return { ok: true as const };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
+  }
 }
 
 export async function deleteCourse(courseId: string) {
-  const user = await requireRole("admin", "institution");
-  await assertCourseAccess(user, courseId);
-  await db.delete(schema.courses).where(eq(schema.courses.id, courseId));
-  await logActivity({ userId: user.id, action: "course_deleted", entityType: "course", entityId: courseId });
-  revalidatePath("/admin/cursos");
-  revalidatePath("/institucion/cursos");
+  try {
+    const user = await requireRole("admin", "institution");
+    await assertCourseAccess(user, courseId);
+    await db.delete(schema.courses).where(eq(schema.courses.id, courseId));
+    await logActivity({ userId: user.id, action: "course_deleted", entityType: "course", entityId: courseId });
+    revalidatePath("/admin/cursos");
+    revalidatePath("/institucion/cursos");
+    return { ok: true as const };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
+  }
 }
 
 // ---- Módulos ----
 export async function createModule(courseId: string, title: string, description?: string) {
-  const user = await requireRole("admin", "teacher", "institution");
-  await assertCourseAccess(user, courseId);
-  const existing = await db.query.modules.findMany({ where: eq(schema.modules.courseId, courseId) });
-  const [mod] = await db
-    .insert(schema.modules)
-    .values({ courseId, title, description, order: existing.length })
-    .returning();
-  revalidatePath(`/admin/cursos/${courseId}`);
-  revalidatePath(`/profesor/cursos/${courseId}`);
-  return mod;
+  try {
+    const user = await requireRole("admin", "teacher", "institution");
+    await assertCourseAccess(user, courseId);
+    const existing = await db.query.modules.findMany({ where: eq(schema.modules.courseId, courseId) });
+    const [mod] = await db
+      .insert(schema.modules)
+      .values({ courseId, title, description, order: existing.length })
+      .returning();
+    revalidatePath(`/admin/cursos/${courseId}`);
+    revalidatePath(`/profesor/cursos/${courseId}`);
+    return { ok: true as const, module: mod };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
+  }
 }
 
 export async function updateModule(moduleId: string, data: { title?: string; description?: string; published?: boolean }) {
-  await requireRole("admin", "teacher", "institution");
-  await db.update(schema.modules).set(data).where(eq(schema.modules.id, moduleId));
-  revalidatePath("/admin/cursos", "layout");
-  revalidatePath("/profesor/cursos", "layout");
+  try {
+    const user = await requireRole("admin", "teacher", "institution");
+    const mod = await db.query.modules.findFirst({ where: eq(schema.modules.id, moduleId) });
+    if (!mod) throw new Error("Módulo no encontrado.");
+    await assertCourseAccess(user, mod.courseId);
+    await db.update(schema.modules).set(data).where(eq(schema.modules.id, moduleId));
+    revalidatePath("/admin/cursos", "layout");
+    revalidatePath("/profesor/cursos", "layout");
+    return { ok: true as const };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
+  }
 }
 
 export async function deleteModule(moduleId: string) {
-  await requireRole("admin", "teacher", "institution");
-  await db.delete(schema.modules).where(eq(schema.modules.id, moduleId));
-  revalidatePath("/admin/cursos", "layout");
-  revalidatePath("/profesor/cursos", "layout");
+  try {
+    const user = await requireRole("admin", "teacher", "institution");
+    const mod = await db.query.modules.findFirst({ where: eq(schema.modules.id, moduleId) });
+    if (!mod) throw new Error("Módulo no encontrado.");
+    await assertCourseAccess(user, mod.courseId);
+    await db.delete(schema.modules).where(eq(schema.modules.id, moduleId));
+    revalidatePath("/admin/cursos", "layout");
+    revalidatePath("/profesor/cursos", "layout");
+    return { ok: true as const };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
+  }
 }
 
 export async function reorderModules(courseId: string, orderedIds: string[]) {
-  await requireRole("admin", "teacher", "institution");
-  await Promise.all(
-    orderedIds.map((id, index) => db.update(schema.modules).set({ order: index }).where(eq(schema.modules.id, id)))
-  );
-  revalidatePath(`/admin/cursos/${courseId}`);
-  revalidatePath(`/profesor/cursos/${courseId}`);
+  try {
+    const user = await requireRole("admin", "teacher", "institution");
+    await assertCourseAccess(user, courseId);
+    await Promise.all(
+      orderedIds.map((id, index) => db.update(schema.modules).set({ order: index }).where(eq(schema.modules.id, id)))
+    );
+    revalidatePath(`/admin/cursos/${courseId}`);
+    revalidatePath(`/profesor/cursos/${courseId}`);
+    return { ok: true as const };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
+  }
 }
 
 // ---- Clases (lessons) ----
 export async function createLesson(moduleId: string, title: string, description?: string) {
-  await requireRole("admin", "teacher", "institution");
-  const existing = await db.query.lessons.findMany({ where: eq(schema.lessons.moduleId, moduleId) });
-  const [lesson] = await db
-    .insert(schema.lessons)
-    .values({ moduleId, title, description, order: existing.length })
-    .returning();
-  revalidatePath("/admin/cursos", "layout");
-  revalidatePath("/profesor/cursos", "layout");
-  return lesson;
+  try {
+    const user = await requireRole("admin", "teacher", "institution");
+    const mod = await db.query.modules.findFirst({ where: eq(schema.modules.id, moduleId) });
+    if (!mod) throw new Error("Módulo no encontrado.");
+    await assertCourseAccess(user, mod.courseId);
+    const existing = await db.query.lessons.findMany({ where: eq(schema.lessons.moduleId, moduleId) });
+    const [lesson] = await db
+      .insert(schema.lessons)
+      .values({ moduleId, title, description, order: existing.length })
+      .returning();
+    revalidatePath("/admin/cursos", "layout");
+    revalidatePath("/profesor/cursos", "layout");
+    return { ok: true as const, lesson };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
+  }
 }
 
 export async function updateLesson(
   lessonId: string,
   data: { title?: string; description?: string; published?: boolean; isMandatory?: boolean }
 ) {
-  await requireRole("admin", "teacher", "institution");
-  await db.update(schema.lessons).set(data).where(eq(schema.lessons.id, lessonId));
-  revalidatePath("/admin/cursos", "layout");
-  revalidatePath("/profesor/cursos", "layout");
+  try {
+    const user = await requireRole("admin", "teacher", "institution");
+    const lesson = await db.query.lessons.findFirst({ where: eq(schema.lessons.id, lessonId) });
+    if (!lesson) throw new Error("Clase no encontrada.");
+    const mod = await db.query.modules.findFirst({ where: eq(schema.modules.id, lesson.moduleId) });
+    if (!mod) throw new Error("Módulo no encontrado.");
+    await assertCourseAccess(user, mod.courseId);
+    await db.update(schema.lessons).set(data).where(eq(schema.lessons.id, lessonId));
+    revalidatePath("/admin/cursos", "layout");
+    revalidatePath("/profesor/cursos", "layout");
+    return { ok: true as const };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
+  }
 }
 
 export async function deleteLesson(lessonId: string) {
-  await requireRole("admin", "teacher", "institution");
-  await db.delete(schema.lessons).where(eq(schema.lessons.id, lessonId));
-  revalidatePath("/admin/cursos", "layout");
-  revalidatePath("/profesor/cursos", "layout");
+  try {
+    const user = await requireRole("admin", "teacher", "institution");
+    const lesson = await db.query.lessons.findFirst({ where: eq(schema.lessons.id, lessonId) });
+    if (!lesson) throw new Error("Clase no encontrada.");
+    const mod = await db.query.modules.findFirst({ where: eq(schema.modules.id, lesson.moduleId) });
+    if (!mod) throw new Error("Módulo no encontrado.");
+    await assertCourseAccess(user, mod.courseId);
+    await db.delete(schema.lessons).where(eq(schema.lessons.id, lessonId));
+    revalidatePath("/admin/cursos", "layout");
+    revalidatePath("/profesor/cursos", "layout");
+    return { ok: true as const };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
+  }
 }
 
 export async function reorderLessons(moduleId: string, orderedIds: string[]) {
-  await requireRole("admin", "teacher", "institution");
-  await Promise.all(
-    orderedIds.map((id, index) => db.update(schema.lessons).set({ order: index }).where(eq(schema.lessons.id, id)))
-  );
-  revalidatePath("/admin/cursos", "layout");
-  revalidatePath("/profesor/cursos", "layout");
+  try {
+    const user = await requireRole("admin", "teacher", "institution");
+    const mod = await db.query.modules.findFirst({ where: eq(schema.modules.id, moduleId) });
+    if (!mod) throw new Error("Módulo no encontrado.");
+    await assertCourseAccess(user, mod.courseId);
+    await Promise.all(
+      orderedIds.map((id, index) => db.update(schema.lessons).set({ order: index }).where(eq(schema.lessons.id, id)))
+    );
+    revalidatePath("/admin/cursos", "layout");
+    revalidatePath("/profesor/cursos", "layout");
+    return { ok: true as const };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
+  }
 }
 
 // ---- Categorías ----
@@ -233,15 +313,30 @@ export async function deleteCategory(id: string) {
 
 // ---- Requisitos previos ----
 export async function setCourseRequirement(courseId: string, requiredCourseId: string) {
-  await requireRole("admin", "teacher", "institution");
-  if (courseId === requiredCourseId) return;
-  await db.insert(schema.courseRequirements).values({ courseId, requiredCourseId }).onConflictDoNothing();
-  revalidatePath(`/admin/cursos/${courseId}`);
+  try {
+    const user = await requireRole("admin", "teacher", "institution");
+    await assertCourseAccess(user, courseId);
+    if (courseId === requiredCourseId) return { ok: true as const };
+    await db.insert(schema.courseRequirements).values({ courseId, requiredCourseId }).onConflictDoNothing();
+    revalidatePath(`/admin/cursos/${courseId}`);
+    return { ok: true as const };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
+  }
 }
 
 export async function removeCourseRequirement(id: string) {
-  await requireRole("admin", "teacher", "institution");
-  await db.delete(schema.courseRequirements).where(eq(schema.courseRequirements.id, id));
+  try {
+    const user = await requireRole("admin", "teacher", "institution");
+    const requirement = await db.query.courseRequirements.findFirst({ where: eq(schema.courseRequirements.id, id) });
+    if (!requirement) throw new Error("Requisito no encontrado.");
+    await assertCourseAccess(user, requirement.courseId);
+    await db.delete(schema.courseRequirements).where(eq(schema.courseRequirements.id, id));
+    revalidatePath(`/admin/cursos/${requirement.courseId}`);
+    return { ok: true as const };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
+  }
 }
 
 // ---- Helper de autorización: un profesor solo administra sus cursos; una

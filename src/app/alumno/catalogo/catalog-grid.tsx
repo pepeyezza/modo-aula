@@ -39,7 +39,8 @@ export function StudentCatalogGrid({
   async function handleEnroll(courseId: string) {
     setLoadingId(courseId);
     try {
-      await selfEnroll(courseId);
+      const result = await selfEnroll(courseId);
+      if (!result.ok) throw new Error(result.error);
       setEnrolled((prev) => new Set(prev).add(courseId));
       toast.success("¡Inscripción realizada!");
       router.refresh();

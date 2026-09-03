@@ -62,8 +62,8 @@ export function ModuleCard({ courseId, module: mod, index }: { courseId: string;
             onClick={() =>
               startTransition(async () => {
                 if (!confirm(`¿Eliminar el módulo "${mod.title}" y todo su contenido?`)) return;
-                await deleteModule(mod.id);
-                toast.success("Módulo eliminado");
+                const result = await deleteModule(mod.id);
+                if (!result.ok) toast.error(result.error); else toast.success("Módulo eliminado");
               })
             }
           >
@@ -94,7 +94,8 @@ export function ModuleCard({ courseId, module: mod, index }: { courseId: string;
                   onClick={() => startTransition(async () => {
                     const ids = mod.lessons.map((l) => l.id);
                     [ids[li - 1], ids[li]] = [ids[li], ids[li - 1]];
-                    await reorderLessons(mod.id, ids);
+                    const result = await reorderLessons(mod.id, ids);
+                    if (!result.ok) toast.error(result.error);
                   })}
                 ><ChevronUp className="h-3.5 w-3.5" /></Button>
                 <Button
@@ -103,7 +104,8 @@ export function ModuleCard({ courseId, module: mod, index }: { courseId: string;
                   onClick={() => startTransition(async () => {
                     const ids = mod.lessons.map((l) => l.id);
                     [ids[li + 1], ids[li]] = [ids[li], ids[li + 1]];
-                    await reorderLessons(mod.id, ids);
+                    const result = await reorderLessons(mod.id, ids);
+                    if (!result.ok) toast.error(result.error);
                   })}
                 ><ChevronDown className="h-3.5 w-3.5" /></Button>
                 <Button size="sm" variant="ghost" onClick={() => setMaterialDialogLesson(lesson.id)}><Plus className="h-3.5 w-3.5" /> Material</Button>
@@ -111,7 +113,8 @@ export function ModuleCard({ courseId, module: mod, index }: { courseId: string;
                   size="icon" variant="ghost"
                   onClick={() => startTransition(async () => {
                     if (!confirm(`¿Eliminar la clase "${lesson.title}"?`)) return;
-                    await deleteLesson(lesson.id);
+                    const result = await deleteLesson(lesson.id);
+                    if (!result.ok) toast.error(result.error);
                   })}
                 ><Trash2 className="h-3.5 w-3.5 text-[var(--danger)]" /></Button>
               </div>

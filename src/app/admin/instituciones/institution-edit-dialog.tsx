@@ -45,12 +45,13 @@ export function InstitutionEditDialog({
       });
       if (institution.loginUser) {
         const newPassword = String(fd.get("userPassword") || "");
-        await updateUser(institution.loginUser.id, {
+        const result = await updateUser(institution.loginUser.id, {
           firstName: String(fd.get("userFirstName")),
           lastName: String(fd.get("userLastName")),
           email: String(fd.get("userEmail")),
           password: newPassword || undefined,
         });
+        if (!result.ok) throw new Error(result.error);
       }
       toast.success("Institución actualizada");
       onOpenChange(false);

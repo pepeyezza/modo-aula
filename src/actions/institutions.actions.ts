@@ -29,47 +29,51 @@ export async function createInstitution(input: {
   institution: z.infer<typeof institutionSchema>;
   user: z.infer<typeof institutionUserSchema>;
 }) {
-  const admin = await requireRole("admin");
-  const institutionData = institutionSchema.parse(input.institution);
-  const userData = institutionUserSchema.parse(input.user);
+  try {
+    const admin = await requireRole("admin");
+    const institutionData = institutionSchema.parse(input.institution);
+    const userData = institutionUserSchema.parse(input.user);
 
-  const existing = await db.query.users.findFirst({ where: eq(schema.users.email, userData.email.toLowerCase()) });
-  if (existing) throw new Error("Ya existe un usuario con ese email.");
+    const existing = await db.query.users.findFirst({ where: eq(schema.users.email, userData.email.toLowerCase()) });
+    if (existing) throw new Error("Ya existe un usuario con ese email.");
 
-  const baseSlug = slugify(institutionData.name);
-  let slug = baseSlug;
-  let i = 1;
-  while (await db.query.institutions.findFirst({ where: eq(schema.institutions.slug, slug) })) {
-    slug = `${baseSlug}-${++i}`;
+    const baseSlug = slugify(institutionData.name);
+    let slug = baseSlug;
+    let i = 1;
+    while (await db.query.institutions.findFirst({ where: eq(schema.institutions.slug, slug) })) {
+      slug = `${baseSlug}-${++i}`;
+    }
+
+    const [institution] = await db
+      .insert(schema.institutions)
+      .values({
+        name: institutionData.name,
+        slug,
+        logoUrl: institutionData.logoUrl || null,
+        contactEmail: institutionData.contactEmail || null,
+        contactPhone: institutionData.contactPhone || null,
+      })
+      .returning();
+
+    const passwordHash = await hashPassword(userData.password || "Capacita2026!");
+    const [user] = await db
+      .insert(schema.users)
+      .values({
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        email: userData.email.toLowerCase(),
+        role: "institution",
+        institutionId: institution.id,
+        passwordHash,
+      })
+      .returning();
+
+    await logActivity({ userId: admin.id, action: "institution_created", entityType: "institution", entityId: institution.id });
+    revalidatePath("/admin/instituciones");
+    return { ok: true as const, institution, user };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
   }
-
-  const [institution] = await db
-    .insert(schema.institutions)
-    .values({
-      name: institutionData.name,
-      slug,
-      logoUrl: institutionData.logoUrl || null,
-      contactEmail: institutionData.contactEmail || null,
-      contactPhone: institutionData.contactPhone || null,
-    })
-    .returning();
-
-  const passwordHash = await hashPassword(userData.password || "Capacita2026!");
-  const [user] = await db
-    .insert(schema.users)
-    .values({
-      firstName: userData.firstName,
-      lastName: userData.lastName,
-      email: userData.email.toLowerCase(),
-      role: "institution",
-      institutionId: institution.id,
-      passwordHash,
-    })
-    .returning();
-
-  await logActivity({ userId: admin.id, action: "institution_created", entityType: "institution", entityId: institution.id });
-  revalidatePath("/admin/instituciones");
-  return { institution, user };
 }
 
 export async function updateInstitution(id: string, input: Partial<z.infer<typeof institutionSchema>>) {

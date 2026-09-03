@@ -59,57 +59,61 @@ export async function checkCertificateEligibility(userId: string, courseId: stri
 }
 
 export async function issueCertificate(userId: string, courseId: string, force = false) {
-  const actor = await requireUser();
-  if (actor.role === "student" && actor.id !== userId) throw new Error("No autorizado");
-  if (actor.role !== "admin" && !force) {
-    const check = await checkCertificateEligibility(userId, courseId);
-    if (!check.eligible) throw new Error(check.reasons.join(" · "));
-  }
+  try {
+    const actor = await requireUser();
+    if (actor.role === "student" && actor.id !== userId) throw new Error("No autorizado");
+    if (actor.role !== "admin" && !force) {
+      const check = await checkCertificateEligibility(userId, courseId);
+      if (!check.eligible) throw new Error(check.reasons.join(" · "));
+    }
 
-  const [student, course] = await Promise.all([
-    db.query.users.findFirst({ where: eq(schema.users.id, userId) }),
-    db.query.courses.findFirst({
-      where: eq(schema.courses.id, courseId),
-      with: { teachers: { with: { teacher: true } } },
-    }),
-  ]);
-  if (!student || !course) throw new Error("Datos no encontrados");
+    const [student, course] = await Promise.all([
+      db.query.users.findFirst({ where: eq(schema.users.id, userId) }),
+      db.query.courses.findFirst({
+        where: eq(schema.courses.id, courseId),
+        with: { teachers: { with: { teacher: true } } },
+      }),
+    ]);
+    if (!student || !course) throw new Error("Datos no encontrados");
 
-  let code = randomCode(10);
-  while (await db.query.certificates.findFirst({ where: eq(schema.certificates.code, code) })) {
-    code = randomCode(10);
-  }
+    let code = randomCode(10);
+    while (await db.query.certificates.findFirst({ where: eq(schema.certificates.code, code) })) {
+      code = randomCode(10);
+    }
 
-  const [certificate] = await db
-    .insert(schema.certificates)
-    .values({
+    const [certificate] = await db
+      .insert(schema.certificates)
+      .values({
+        userId,
+        courseId,
+        code,
+        hoursTotal: course.durationHours,
+        teacherName: course.teachers[0]
+          ? `${course.teachers[0].teacher.firstName} ${course.teachers[0].teacher.lastName}`
+          : null,
+        institution: course.institution ?? process.env.APP_INSTITUTION_NAME ?? "Capacita",
+      })
+      .returning();
+
+    await db.update(schema.enrollments).set({ status: "aprobado" }).where(
+      and(eq(schema.enrollments.userId, userId), eq(schema.enrollments.courseId, courseId))
+    );
+
+    await notify({
       userId,
-      courseId,
-      code,
-      hoursTotal: course.durationHours,
-      teacherName: course.teachers[0]
-        ? `${course.teachers[0].teacher.firstName} ${course.teachers[0].teacher.lastName}`
-        : null,
-      institution: course.institution ?? process.env.APP_INSTITUTION_NAME ?? "Capacita",
-    })
-    .returning();
+      type: "certificado_emitido",
+      title: "¡Certificado emitido!",
+      message: `Ya podés descargar tu certificado de "${course.name}".`,
+      link: `/alumno/certificados`,
+    });
+    await logActivity({ userId: actor.id, action: "certificate_issued", entityType: "certificate", entityId: certificate.id });
 
-  await db.update(schema.enrollments).set({ status: "aprobado" }).where(
-    and(eq(schema.enrollments.userId, userId), eq(schema.enrollments.courseId, courseId))
-  );
-
-  await notify({
-    userId,
-    type: "certificado_emitido",
-    title: "¡Certificado emitido!",
-    message: `Ya podés descargar tu certificado de "${course.name}".`,
-    link: `/alumno/certificados`,
-  });
-  await logActivity({ userId: actor.id, action: "certificate_issued", entityType: "certificate", entityId: certificate.id });
-
-  revalidatePath("/admin/certificados");
-  revalidatePath("/alumno/certificados");
-  return certificate;
+    revalidatePath("/admin/certificados");
+    revalidatePath("/alumno/certificados");
+    return { ok: true as const, certificate };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
+  }
 }
 
 export async function verifyCertificate(code: string) {

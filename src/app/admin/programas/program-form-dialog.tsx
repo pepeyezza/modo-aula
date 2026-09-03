@@ -29,12 +29,13 @@ export function ProgramFormDialog({
     setLoading(true);
     const fd = new FormData(e.currentTarget);
     try {
-      await createProgram({
+      const result = await createProgram({
         name: String(fd.get("name")),
         description: String(fd.get("description") || ""),
         imageUrl: String(fd.get("imageUrl") || ""),
         institution: lockedInstitutionName || String(fd.get("institution") || ""),
       });
+      if (!result.ok) throw new Error(result.error);
       toast.success("Programa creado");
       onOpenChange(false);
     } catch (err) {

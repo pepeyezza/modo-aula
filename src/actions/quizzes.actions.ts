@@ -132,52 +132,57 @@ export async function togglePublishQuiz(quizId: string, published: boolean) {
 
 // ---- Rendir evaluación (alumno) ----
 export async function startQuizAttempt(quizId: string) {
-  const user = await requireRole("student");
+  try {
+    const user = await requireRole("student");
 
-  const quiz = await db.query.quizzes.findFirst({
-    where: eq(schema.quizzes.id, quizId),
-    with: { quizQuestions: { with: { question: { with: { options: true } } } } },
-  });
-  if (!quiz || !quiz.published) throw new Error("Evaluación no disponible");
+    const quiz = await db.query.quizzes.findFirst({
+      where: eq(schema.quizzes.id, quizId),
+      with: { quizQuestions: { with: { question: { with: { options: true } } } } },
+    });
+    if (!quiz || !quiz.published) throw new Error("Evaluación no disponible");
 
-  const previousAttempts = await db.query.quizAttempts.findMany({
-    where: and(eq(schema.quizAttempts.quizId, quizId), eq(schema.quizAttempts.studentId, user.id)),
-  });
-  if (previousAttempts.length >= quiz.attemptsAllowed) {
-    throw new Error("Alcanzaste el máximo de intentos permitidos.");
+    const previousAttempts = await db.query.quizAttempts.findMany({
+      where: and(eq(schema.quizAttempts.quizId, quizId), eq(schema.quizAttempts.studentId, user.id)),
+    });
+    if (previousAttempts.length >= quiz.attemptsAllowed) {
+      throw new Error("Alcanzaste el máximo de intentos permitidos.");
+    }
+
+    const [attempt] = await db
+      .insert(schema.quizAttempts)
+      .values({ quizId, studentId: user.id, attemptNumber: previousAttempts.length + 1 })
+      .returning();
+
+    let questions = quiz.quizQuestions.map((qq) => qq.question);
+    if (quiz.randomizeOrder) {
+      questions = [...questions].sort(() => Math.random() - 0.5);
+    }
+    if (quiz.randomQuestionCount && quiz.randomQuestionCount < questions.length) {
+      questions = questions.slice(0, quiz.randomQuestionCount);
+    }
+
+    // No enviamos isCorrect de las opciones al cliente mientras rinde.
+    const sanitized = questions.map((q) => ({
+      id: q.id,
+      text: q.text,
+      type: q.type,
+      points: q.points,
+      options: q.options
+        .sort((a, b) => a.order - b.order)
+        .map((o) => ({ id: o.id, text: o.text })),
+    }));
+
+    return {
+      ok: true as const,
+      attemptId: attempt.id,
+      startedAt: attempt.startedAt,
+      timeLimitMinutes: quiz.timeLimitMinutes,
+      title: quiz.title,
+      questions: sanitized,
+    };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
   }
-
-  const [attempt] = await db
-    .insert(schema.quizAttempts)
-    .values({ quizId, studentId: user.id, attemptNumber: previousAttempts.length + 1 })
-    .returning();
-
-  let questions = quiz.quizQuestions.map((qq) => qq.question);
-  if (quiz.randomizeOrder) {
-    questions = [...questions].sort(() => Math.random() - 0.5);
-  }
-  if (quiz.randomQuestionCount && quiz.randomQuestionCount < questions.length) {
-    questions = questions.slice(0, quiz.randomQuestionCount);
-  }
-
-  // No enviamos isCorrect de las opciones al cliente mientras rinde.
-  const sanitized = questions.map((q) => ({
-    id: q.id,
-    text: q.text,
-    type: q.type,
-    points: q.points,
-    options: q.options
-      .sort((a, b) => a.order - b.order)
-      .map((o) => ({ id: o.id, text: o.text })),
-  }));
-
-  return {
-    attemptId: attempt.id,
-    startedAt: attempt.startedAt,
-    timeLimitMinutes: quiz.timeLimitMinutes,
-    title: quiz.title,
-    questions: sanitized,
-  };
 }
 
 type SubmittedAnswer = {
@@ -188,6 +193,7 @@ type SubmittedAnswer = {
 };
 
 export async function submitQuizAttempt(attemptId: string, courseId: string, answersInput: SubmittedAnswer[]) {
+ try {
   const user = await requireRole("student");
 
   const attempt = await db.query.quizAttempts.findFirst({
@@ -295,7 +301,10 @@ export async function submitQuizAttempt(attemptId: string, courseId: string, ans
   revalidatePath(`/alumno/cursos/${courseId}`);
   revalidatePath("/profesor/cursos", "layout");
 
-  return { scorePercent, pendingManualGrading: hasPendingManualGrading };
+  return { ok: true as const, scorePercent, pendingManualGrading: hasPendingManualGrading };
+ } catch (err) {
+   return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
+ }
 }
 
 export async function gradeOpenAnswer(answerId: string, pointsAwarded: number, feedback?: string) {

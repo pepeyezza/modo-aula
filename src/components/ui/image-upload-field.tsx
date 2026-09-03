@@ -35,6 +35,7 @@ export function ImageUploadField({
       const fd = new FormData();
       fd.set("file", file);
       const result = await uploadImage(fd);
+      if (!result.ok) throw new Error(result.error);
       setValue(result.url);
       toast.success("Imagen subida");
     } catch (err) {

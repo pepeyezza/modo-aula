@@ -24,7 +24,8 @@ export function CertificatesTab({ course, isAdmin }: { course: CourseFull; isAdm
         toast.error(check.reasons.join(" · "));
         return;
       }
-      await issueCertificate(userId, course.id, isAdmin && !check.eligible);
+      const result = await issueCertificate(userId, course.id, isAdmin && !check.eligible);
+      if (!result.ok) throw new Error(result.error);
       toast.success("Certificado emitido");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al emitir certificado");
