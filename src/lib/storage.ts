@@ -35,8 +35,17 @@ export const STORAGE_ROOT = path.join(process.cwd(), "storage", "uploads");
 //  - BLOB_READ_WRITE_TOKEN_PRIVATE -> store "Private" (materiales, actividades,
 //    entregas de alumnos, adjuntos de foro — todo lo que exige sesión iniciada).
 // Pasar access:"private" contra el store público directamente falla en Vercel.
-export const BLOB_TOKEN_PUBLIC = process.env.BLOB_READ_WRITE_TOKEN;
-export const BLOB_TOKEN_PRIVATE = process.env.BLOB_READ_WRITE_TOKEN_PRIVATE;
+// Al conectar un Blob Store a un proyecto, Vercel no crea una sola variable
+// con el nombre elegido: la usa como PREFIJO y genera varias, agregándole
+// un sufijo (p. ej. BLOB_READ_WRITE_TOKEN_PRIVATE_READ_WRITE_TOKEN,
+// BLOB_READ_WRITE_TOKEN_PRIVATE_STORE_ID, etc.). El token de lectura/escritura
+// termina en "_READ_WRITE_TOKEN" — probamos primero esa variante (la que
+// realmente genera el dashboard) y si no está, probamos el nombre "pelado"
+// por si alguien lo configuró manualmente así.
+export const BLOB_TOKEN_PUBLIC =
+  process.env.BLOB_READ_WRITE_TOKEN_READ_WRITE_TOKEN || process.env.BLOB_READ_WRITE_TOKEN;
+export const BLOB_TOKEN_PRIVATE =
+  process.env.BLOB_READ_WRITE_TOKEN_PRIVATE_READ_WRITE_TOKEN || process.env.BLOB_READ_WRITE_TOKEN_PRIVATE;
 
 // Único lugar donde se decide qué carpetas son de contenido público.
 const PUBLIC_FOLDERS = new Set(["imagenes"]);
@@ -54,7 +63,7 @@ export async function saveFile(
   if (BLOB_TOKEN_PUBLIC || BLOB_TOKEN_PRIVATE) {
     if (!isPublic && !BLOB_TOKEN_PRIVATE) {
       throw new Error(
-        "Falta configurar el almacenamiento privado del sitio (variable de entorno BLOB_READ_WRITE_TOKEN_PRIVATE). Contactá al administrador de la plataforma."
+        "Falta configurar el almacenamiento privado del sitio (variable de entorno BLOB_READ_WRITE_TOKEN_PRIVATE_READ_WRITE_TOKEN, generada al conectar el Blob Store privado en Vercel). Contactá al administrador de la plataforma."
       );
     }
     const { put } = await import("@vercel/blob");
