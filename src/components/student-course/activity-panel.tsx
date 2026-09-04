@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { submitActivity } from "@/actions/activities.actions";
+import { uploadPrivateFile, DIRECT_UPLOAD_THRESHOLD } from "@/lib/blob-client-upload";
 import { formatDate } from "@/lib/utils";
 import type { StudentActivity } from "./types";
 
@@ -34,6 +35,12 @@ export function ActivityPanel({ activity, courseId, submission }: { activity: St
     fd.set("activityId", activity.id);
     fd.set("courseId", courseId);
     try {
+      const file = fd.get("file") as File | null;
+      if (file && file.size > DIRECT_UPLOAD_THRESHOLD) {
+        const url = await uploadPrivateFile(file, `entregas/${activity.id}`);
+        fd.set("fileUrl", url);
+        fd.delete("file");
+      }
       const result = await submitActivity(fd);
       if (!result.ok) throw new Error(result.error);
       toast.success("Actividad entregada");

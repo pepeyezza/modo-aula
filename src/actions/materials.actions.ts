@@ -38,6 +38,9 @@ export async function createMaterial(formData: FormData) {
     const externalUrl = formData.get("externalUrl") as string | null;
     const isMandatory = formData.get("isMandatory") === "on";
     const file = formData.get("file") as File | null;
+    // Si el archivo era grande, ya se subió directo a Blob desde el
+    // navegador (ver blob-client-upload.ts) y acá solo llega la URL.
+    const fileUrlInput = formData.get("fileUrl") as string | null;
 
     let type: (typeof schema.materialTypeEnum.enumValues)[number] = "texto";
     let fileUrl: string | null = null;
@@ -48,6 +51,10 @@ export async function createMaterial(formData: FormData) {
     } else if (kind === "link" || kind === "youtube") {
       type = kind === "youtube" ? "video" : "link";
       finalExternalUrl = externalUrl;
+    } else if (fileUrlInput && fileUrlInput.startsWith(`/api/files/materiales/${lessonId}/`)) {
+      const ext = (fileUrlInput.split(".").pop() || "").toLowerCase();
+      type = EXT_TYPE[ext] ?? "archivo";
+      fileUrl = fileUrlInput;
     } else if (file && file.size > 0) {
       const ext = (file.name.split(".").pop() || "").toLowerCase();
       type = EXT_TYPE[ext] ?? "archivo";

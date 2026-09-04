@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { createForumPost } from "@/actions/forums.actions";
+import { uploadPrivateFile, DIRECT_UPLOAD_THRESHOLD } from "@/lib/blob-client-upload";
 import { formatDateTime, initials } from "@/lib/utils";
 import type { StudentForum } from "./types";
 
@@ -17,15 +18,26 @@ export function ForumPanel({ forum, courseId }: { forum: StudentForum; courseId:
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    // El navegador invalida e.currentTarget apenas termina el despacho del
+    // evento, así que si lo necesitamos después de un await hay que
+    // guardarlo antes (si no, "reset()" revienta con "Cannot read
+    // properties of null").
+    const form = e.currentTarget;
     setLoading(true);
-    const fd = new FormData(e.currentTarget);
+    const fd = new FormData(form);
     fd.set("forumId", forum.id);
     fd.set("courseId", courseId);
     try {
+      const file = fd.get("file") as File | null;
+      if (file && file.size > DIRECT_UPLOAD_THRESHOLD) {
+        const url = await uploadPrivateFile(file, `foros/${forum.id}`);
+        fd.set("fileUrl", url);
+        fd.delete("file");
+      }
       const result = await createForumPost(fd);
       if (!result.ok) throw new Error(result.error);
       toast.success("Publicación enviada");
-      (e.currentTarget as HTMLFormElement).reset();
+      form.reset();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error");
     } finally {

@@ -9,21 +9,33 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { createActivity } from "@/actions/activities.actions";
+import { uploadPrivateFile, DIRECT_UPLOAD_THRESHOLD } from "@/lib/blob-client-upload";
 
 export function ActivityDialog({ open, onOpenChange, moduleId }: { open: boolean; onOpenChange: (v: boolean) => void; moduleId: string }) {
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    // El navegador invalida e.currentTarget apenas termina el despacho del
+    // evento, así que si lo necesitamos después de un await hay que
+    // guardarlo antes (si no, "reset()" revienta con "Cannot read
+    // properties of null").
+    const form = e.currentTarget;
     setLoading(true);
-    const fd = new FormData(e.currentTarget);
+    const fd = new FormData(form);
     fd.set("moduleId", moduleId);
     try {
+      const file = fd.get("file") as File | null;
+      if (file && file.size > DIRECT_UPLOAD_THRESHOLD) {
+        const url = await uploadPrivateFile(file, "actividades");
+        fd.set("fileUrl", url);
+        fd.delete("file");
+      }
       const result = await createActivity(fd);
       if (!result.ok) throw new Error(result.error);
       toast.success("Actividad creada");
       onOpenChange(false);
-      (e.currentTarget as HTMLFormElement).reset();
+      form.reset();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error");
     } finally {

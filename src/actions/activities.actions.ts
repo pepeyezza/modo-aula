@@ -20,9 +20,14 @@ export async function createActivity(formData: FormData) {
     const approvalCriteria = formData.get("approvalCriteria") as string | null;
     const isMandatory = formData.get("isMandatory") === "on";
     const file = formData.get("file") as File | null;
+    // Si el archivo era grande, ya se subió directo a Blob desde el
+    // navegador (ver blob-client-upload.ts) y acá solo llega la URL.
+    const fileUrlInput = formData.get("fileUrl") as string | null;
 
     let attachmentUrl: string | null = null;
-    if (file && file.size > 0) {
+    if (fileUrlInput && fileUrlInput.startsWith("/api/files/actividades/")) {
+      attachmentUrl = fileUrlInput;
+    } else if (file && file.size > 0) {
       const saved = await saveFile(file, `actividades`);
       attachmentUrl = saved.url;
     }
@@ -97,9 +102,14 @@ export async function submitActivity(formData: FormData) {
     const courseId = String(formData.get("courseId"));
     const textContent = formData.get("textContent") as string | null;
     const file = formData.get("file") as File | null;
+    // Si el archivo era grande, ya se subió directo a Blob desde el
+    // navegador (ver blob-client-upload.ts) y acá solo llega la URL.
+    const fileUrlInput = formData.get("fileUrl") as string | null;
 
     let fileUrl: string | null = null;
-    if (file && file.size > 0) {
+    if (fileUrlInput && fileUrlInput.startsWith(`/api/files/entregas/${activityId}/`)) {
+      fileUrl = fileUrlInput;
+    } else if (file && file.size > 0) {
       const saved = await saveFile(file, `entregas/${activityId}`);
       fileUrl = saved.url;
     }

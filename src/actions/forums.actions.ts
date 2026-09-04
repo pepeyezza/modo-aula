@@ -59,9 +59,14 @@ export async function createForumPost(formData: FormData) {
     const content = String(formData.get("content"));
     const parentId = (formData.get("parentId") as string) || null;
     const file = formData.get("file") as File | null;
+    // Si el archivo era grande, ya se subió directo a Blob desde el
+    // navegador (ver blob-client-upload.ts) y acá solo llega la URL.
+    const fileUrlInput = formData.get("fileUrl") as string | null;
 
     let attachmentUrl: string | null = null;
-    if (file && file.size > 0) {
+    if (fileUrlInput && fileUrlInput.startsWith(`/api/files/foros/${forumId}/`)) {
+      attachmentUrl = fileUrlInput;
+    } else if (file && file.size > 0) {
       const saved = await saveFile(file, `foros/${forumId}`);
       attachmentUrl = saved.url;
     }

@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { createMaterial } from "@/actions/materials.actions";
+import { uploadPrivateFile, DIRECT_UPLOAD_THRESHOLD } from "@/lib/blob-client-upload";
 
 export function MaterialDialog({
   open, onOpenChange, lessonId,
@@ -34,6 +35,14 @@ export function MaterialDialog({
     fd.set("kind", kind);
     if (kind === "texto") fd.set("content", richContent);
     try {
+      if (kind === "archivo") {
+        const file = fd.get("file") as File | null;
+        if (file && file.size > DIRECT_UPLOAD_THRESHOLD) {
+          const url = await uploadPrivateFile(file, `materiales/${lessonId}`);
+          fd.set("fileUrl", url);
+          fd.delete("file");
+        }
+      }
       const result = await createMaterial(fd);
       if (!result.ok) throw new Error(result.error);
       toast.success("Material publicado");
