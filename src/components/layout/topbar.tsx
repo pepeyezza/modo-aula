@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Menu, Search, LogOut, User as UserIcon } from "lucide-react";
+import { Menu, Search, LogOut, User as UserIcon, Repeat } from "lucide-react";
 import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -91,6 +91,19 @@ export function Topbar({
                 <UserIcon className="h-4 w-4" /> Mi perfil
               </Link>
             </DropdownMenuItem>
+            {user.role === "institution" && (
+              <DropdownMenuItem asChild>
+                {basePath.startsWith("/profesor") ? (
+                  <Link href="/institucion">
+                    <Repeat className="h-4 w-4" /> Volver a mi panel de Institución
+                  </Link>
+                ) : (
+                  <Link href="/profesor">
+                    <Repeat className="h-4 w-4" /> Ver el sitio como Profesor
+                  </Link>
+                )}
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/" })}>
               <LogOut className="h-4 w-4" /> Cerrar sesión

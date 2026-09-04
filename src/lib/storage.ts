@@ -27,7 +27,16 @@ import { randomUUID } from "crypto";
 
 export const STORAGE_ROOT = path.join(process.cwd(), "storage", "uploads");
 
-const BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
+// Vercel Blob NO permite mezclar accesos "public" y "private" dentro de un
+// mismo store: el modo de acceso queda fijo al crear el store y no se puede
+// cambiar después (ver https://vercel.com/docs/vercel-blob#private-and-public-storage).
+// Por eso usamos DOS stores/tokens distintos:
+//  - BLOB_READ_WRITE_TOKEN         -> store "Public" (portadas, logos, avatares).
+//  - BLOB_READ_WRITE_TOKEN_PRIVATE -> store "Private" (materiales, actividades,
+//    entregas de alumnos, adjuntos de foro — todo lo que exige sesión iniciada).
+// Pasar access:"private" contra el store público directamente falla en Vercel.
+export const BLOB_TOKEN_PUBLIC = process.env.BLOB_READ_WRITE_TOKEN;
+export const BLOB_TOKEN_PRIVATE = process.env.BLOB_READ_WRITE_TOKEN_PRIVATE;
 
 // Único lugar donde se decide qué carpetas son de contenido público.
 const PUBLIC_FOLDERS = new Set(["imagenes"]);
@@ -40,14 +49,20 @@ export async function saveFile(
   const safeExt = path.extname(file.name || "").slice(0, 10);
   const filename = `${randomUUID()}${safeExt}`;
   const relativePath = path.posix.join(folder, filename);
+  const isPublic = PUBLIC_FOLDERS.has(folder);
 
-  if (BLOB_TOKEN) {
+  if (BLOB_TOKEN_PUBLIC || BLOB_TOKEN_PRIVATE) {
+    if (!isPublic && !BLOB_TOKEN_PRIVATE) {
+      throw new Error(
+        "Falta configurar el almacenamiento privado del sitio (variable de entorno BLOB_READ_WRITE_TOKEN_PRIVATE). Contactá al administrador de la plataforma."
+      );
+    }
     const { put } = await import("@vercel/blob");
-    const isPublic = PUBLIC_FOLDERS.has(folder);
     const blob = await put(relativePath, bytes, {
       access: isPublic ? "public" : "private",
       addRandomSuffix: false,
       contentType: file.type || undefined,
+      token: isPublic ? BLOB_TOKEN_PUBLIC : BLOB_TOKEN_PRIVATE,
     });
     return {
       relativePath,

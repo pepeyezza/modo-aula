@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { markMaterialViewed, trackVideoProgress } from "@/actions/materials.actions";
-import type { StudentMaterial } from "./types";
+import type { MaterialFull } from "./types";
 
+// Vista previa de un material, para el profesor/dueño (sin registrar
+// progreso ni "visto" — eso solo aplica del lado del alumno, ver
+// src/components/student-course/material-viewer-dialog.tsx).
 function getYoutubeEmbed(url: string) {
   const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([\w-]{11})/);
   return m ? `https://www.youtube.com/embed/${m[1]}` : null;
@@ -16,36 +17,11 @@ function getVimeoEmbed(url: string) {
   return m ? `https://player.vimeo.com/video/${m[1]}` : null;
 }
 
-export function MaterialViewerDialog({
-  open, onOpenChange, material, courseId, initialWatched,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  material: StudentMaterial;
-  courseId: string;
-  initialWatched?: { percentWatched: number; completed: boolean };
-}) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [tracked, setTracked] = useState(initialWatched?.completed ?? false);
-
-  useEffect(() => {
-    if (!open) return;
-    if (material.type !== "video") {
-      markMaterialViewed(material.id, courseId);
-    }
-  }, [open, material.id, material.type, courseId]);
-
+export function ContentPreviewDialog({
+  open, onOpenChange, material,
+}: { open: boolean; onOpenChange: (v: boolean) => void; material: MaterialFull }) {
   const youtubeEmbed = material.externalUrl ? getYoutubeEmbed(material.externalUrl) : null;
   const vimeoEmbed = material.externalUrl ? getVimeoEmbed(material.externalUrl) : null;
-
-  async function handleTimeUpdate() {
-    const v = videoRef.current;
-    if (!v || !v.duration || tracked) return;
-    if (v.currentTime / v.duration > 0.9) {
-      setTracked(true);
-      await trackVideoProgress(material.id, courseId, Math.round(v.currentTime), Math.round(v.duration));
-    }
-  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -62,33 +38,12 @@ export function MaterialViewerDialog({
         {material.type === "video" && (
           <div>
             {youtubeEmbed ? (
-              <iframe
-                src={youtubeEmbed}
-                className="aspect-video w-full rounded-lg"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                onLoad={() => markMaterialViewed(material.id, courseId)}
-              />
+              <iframe src={youtubeEmbed} className="aspect-video w-full rounded-lg" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
             ) : vimeoEmbed ? (
-              <iframe
-                src={vimeoEmbed}
-                className="aspect-video w-full rounded-lg"
-                allow="autoplay; fullscreen; picture-in-picture"
-                allowFullScreen
-                onLoad={() => markMaterialViewed(material.id, courseId)}
-              />
+              <iframe src={vimeoEmbed} className="aspect-video w-full rounded-lg" allow="autoplay; fullscreen; picture-in-picture" allowFullScreen />
             ) : (
-              <video
-                ref={videoRef}
-                src={material.fileUrl ?? material.externalUrl ?? undefined}
-                controls
-                className="aspect-video w-full rounded-lg bg-black"
-                onTimeUpdate={handleTimeUpdate}
-              />
+              <video src={material.fileUrl ?? material.externalUrl ?? undefined} controls className="aspect-video w-full rounded-lg bg-black" />
             )}
-            <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-              {tracked ? "✓ Visualización registrada" : "Se registra automáticamente al ver el 90% del video."}
-            </p>
           </div>
         )}
 
@@ -112,6 +67,10 @@ export function MaterialViewerDialog({
               <a href={material.fileUrl} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" /> Descargar archivo</a>
             </Button>
           </div>
+        )}
+
+        {!material.fileUrl && !material.externalUrl && material.type !== "texto" && (
+          <p className="text-sm text-[var(--muted-foreground)]">Este material todavía no tiene contenido cargado.</p>
         )}
       </DialogContent>
     </Dialog>

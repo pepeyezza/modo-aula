@@ -5,11 +5,14 @@ import { CourseManager } from "@/components/course-manager/course-manager";
 
 export default async function TeacherCourseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const user = await requireRole("teacher", "admin");
+  const user = await requireRole("teacher", "admin", "institution");
   const course = await getCourseFull(id);
   if (!course) notFound();
 
   if (user.role === "teacher" && !course.teachers.some((t) => t.teacher.id === user.id)) {
+    redirect("/profesor/cursos");
+  }
+  if (user.role === "institution" && course.institutionId !== user.institutionId) {
     redirect("/profesor/cursos");
   }
 

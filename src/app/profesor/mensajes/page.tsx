@@ -6,7 +6,7 @@ import { formatDateTime } from "@/lib/utils";
 import { MessageComposer } from "./message-composer";
 
 export default async function TeacherMessagesPage() {
-  const user = await requireRole("teacher", "admin");
+  const user = await requireRole("teacher", "admin", "institution");
   const [courses, messages] = await Promise.all([getCoursesForTeacher(user.id), getMyMessages()]);
 
   return (

@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { readFile, stat } from "fs/promises";
 import path from "path";
 import { auth } from "@/auth";
-import { STORAGE_ROOT } from "@/lib/storage";
-
-const BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
+import { STORAGE_ROOT, BLOB_TOKEN_PRIVATE } from "@/lib/storage";
 
 // Ruta protegida: solo usuarios autenticados pueden descargar materiales,
 // entregas de actividades, avatares, etc. (sección 27 "Protección de archivos").
@@ -24,10 +22,10 @@ export async function GET(
   const { path: segments } = await ctx.params;
   const relative = segments.join("/");
 
-  if (BLOB_TOKEN) {
+  if (BLOB_TOKEN_PRIVATE) {
     try {
       const { get } = await import("@vercel/blob");
-      const result = await get(relative, { access: "private" });
+      const result = await get(relative, { access: "private", token: BLOB_TOKEN_PRIVATE });
       if (!result || result.statusCode !== 200) {
         return NextResponse.json({ error: "Archivo no encontrado" }, { status: 404 });
       }

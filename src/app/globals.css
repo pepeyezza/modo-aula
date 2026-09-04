@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 /* Paleta de marca "MODO Aula": navy + teal + naranja + crema, sobre la
    base de Tailwind, para que todo el resto de la interfaz (que ya usa

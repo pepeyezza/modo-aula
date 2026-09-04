@@ -22,7 +22,8 @@ export function ForumPanel({ forum, courseId }: { forum: StudentForum; courseId:
     fd.set("forumId", forum.id);
     fd.set("courseId", courseId);
     try {
-      await createForumPost(fd);
+      const result = await createForumPost(fd);
+      if (!result.ok) throw new Error(result.error);
       toast.success("Publicación enviada");
       (e.currentTarget as HTMLFormElement).reset();
     } catch (err) {

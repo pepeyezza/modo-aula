@@ -34,7 +34,8 @@ export function ActivityPanel({ activity, courseId, submission }: { activity: St
     fd.set("activityId", activity.id);
     fd.set("courseId", courseId);
     try {
-      await submitActivity(fd);
+      const result = await submitActivity(fd);
+      if (!result.ok) throw new Error(result.error);
       toast.success("Actividad entregada");
       setOpen(false);
     } catch (err) {

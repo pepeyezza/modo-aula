@@ -1,14 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { createMaterial } from "@/actions/materials.actions";
 
 export function MaterialDialog({
@@ -16,6 +16,14 @@ export function MaterialDialog({
 }: { open: boolean; onOpenChange: (v: boolean) => void; lessonId: string | null }) {
   const [loading, setLoading] = useState(false);
   const [kind, setKind] = useState<"texto" | "archivo" | "link" | "youtube">("archivo");
+  const [richContent, setRichContent] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setKind("archivo");
+      setRichContent("");
+    }
+  }, [open]);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -24,8 +32,10 @@ export function MaterialDialog({
     const fd = new FormData(e.currentTarget);
     fd.set("lessonId", lessonId);
     fd.set("kind", kind);
+    if (kind === "texto") fd.set("content", richContent);
     try {
-      await createMaterial(fd);
+      const result = await createMaterial(fd);
+      if (!result.ok) throw new Error(result.error);
       toast.success("Material publicado");
       onOpenChange(false);
       (document.getElementById("material-form") as HTMLFormElement)?.reset();
@@ -61,7 +71,7 @@ export function MaterialDialog({
           {kind === "texto" && (
             <div className="space-y-1.5">
               <Label>Contenido</Label>
-              <Textarea name="content" rows={6} placeholder="Escribí el contenido del material..." />
+              <RichTextEditor value={richContent} onChange={setRichContent} />
             </div>
           )}
           {(kind === "link" || kind === "youtube") && (

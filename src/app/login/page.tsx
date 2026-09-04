@@ -26,14 +26,6 @@ export default async function LoginPage() {
           <LoginForm />
         </Suspense>
 
-        <div className="mt-6 rounded-lg border border-dashed border-[var(--border)] bg-white p-4 text-xs text-[var(--muted-foreground)]">
-          <p className="mb-1 font-semibold text-[var(--foreground)]">Usuarios de demostración</p>
-          <p>Admin: admin@capacita.demo / Demo1234!</p>
-          <p>Institución: institucion@capacita.demo / Demo1234!</p>
-          <p>Profesor: profesor@capacita.demo / Demo1234!</p>
-          <p>Alumno: alumno@capacita.demo / Demo1234!</p>
-        </div>
-
         <p className="mt-6 text-center text-sm text-[var(--muted-foreground)]">
           <Link href="/" className="text-[var(--primary)] hover:underline">
             ← Volver al inicio

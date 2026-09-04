@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { CoursesGrid } from "@/app/admin/cursos/courses-grid";
 
 export default async function TeacherCoursesPage() {
-  const user = await requireRole("teacher", "admin");
+  const user = await requireRole("teacher", "admin", "institution");
   const [courses, categories, programs] = await Promise.all([
     getCoursesForTeacher(user.id),
     db.query.categories.findMany(),

@@ -19,7 +19,8 @@ export function ActivityDialog({ open, onOpenChange, moduleId }: { open: boolean
     const fd = new FormData(e.currentTarget);
     fd.set("moduleId", moduleId);
     try {
-      await createActivity(fd);
+      const result = await createActivity(fd);
+      if (!result.ok) throw new Error(result.error);
       toast.success("Actividad creada");
       onOpenChange(false);
       (e.currentTarget as HTMLFormElement).reset();

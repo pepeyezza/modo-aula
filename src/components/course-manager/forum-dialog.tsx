@@ -18,7 +18,7 @@ export function ForumDialog({ open, onOpenChange, moduleId }: { open: boolean; o
     setLoading(true);
     const fd = new FormData(e.currentTarget);
     try {
-      await createForum({
+      const result = await createForum({
         moduleId,
         title: String(fd.get("title")),
         prompt: String(fd.get("prompt") || ""),
@@ -26,6 +26,7 @@ export function ForumDialog({ open, onOpenChange, moduleId }: { open: boolean; o
         closesAt: String(fd.get("closesAt") || "") || undefined,
         allowReplies: fd.get("allowReplies") === "on",
       });
+      if (!result.ok) throw new Error(result.error);
       toast.success("Foro creado");
       onOpenChange(false);
     } catch (err) {

@@ -117,17 +117,27 @@ export async function createQuiz(input: {
 }
 
 export async function deleteQuiz(quizId: string) {
-  await requireRole("admin", "teacher", "institution");
-  await db.delete(schema.quizzes).where(eq(schema.quizzes.id, quizId));
-  revalidatePath("/admin/cursos", "layout");
-  revalidatePath("/profesor/cursos", "layout");
+  try {
+    await requireRole("admin", "teacher", "institution");
+    await db.delete(schema.quizzes).where(eq(schema.quizzes.id, quizId));
+    revalidatePath("/admin/cursos", "layout");
+    revalidatePath("/profesor/cursos", "layout");
+    return { ok: true as const };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
+  }
 }
 
 export async function togglePublishQuiz(quizId: string, published: boolean) {
-  await requireRole("admin", "teacher", "institution");
-  await db.update(schema.quizzes).set({ published }).where(eq(schema.quizzes.id, quizId));
-  revalidatePath("/admin/cursos", "layout");
-  revalidatePath("/profesor/cursos", "layout");
+  try {
+    await requireRole("admin", "teacher", "institution");
+    await db.update(schema.quizzes).set({ published }).where(eq(schema.quizzes.id, quizId));
+    revalidatePath("/admin/cursos", "layout");
+    revalidatePath("/profesor/cursos", "layout");
+    return { ok: true as const };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
+  }
 }
 
 // ---- Rendir evaluación (alumno) ----

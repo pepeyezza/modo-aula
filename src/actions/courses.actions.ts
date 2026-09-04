@@ -88,7 +88,11 @@ export async function createCourse(input: z.infer<typeof courseSchema>) {
       })
       .returning();
 
-    let teacherIds = parsed.teacherIds?.length ? parsed.teacherIds : user.role === "teacher" ? [user.id] : [];
+    let teacherIds = parsed.teacherIds?.length
+      ? parsed.teacherIds
+      : user.role === "teacher" || user.role === "institution"
+        ? [user.id]
+        : [];
     teacherIds = await sanitizeTeacherIds(user, teacherIds);
     if (teacherIds.length) {
       await db.insert(schema.courseTeachers).values(teacherIds.map((teacherId) => ({ courseId: course.id, teacherId })));

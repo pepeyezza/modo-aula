@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
   Pencil, Trash2, Plus, ChevronDown, ChevronUp, FileText, ClipboardList,
-  MessageSquare, HelpCircle, Video, Link as LinkIcon, File as FileIcon, Eye, EyeOff,
+  MessageSquare, HelpCircle, Video, Link as LinkIcon, File as FileIcon, Eye,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,12 +17,13 @@ import { deleteActivity } from "@/actions/activities.actions";
 import { deleteForum } from "@/actions/forums.actions";
 import { deleteQuiz, togglePublishQuiz } from "@/actions/quizzes.actions";
 import { formatDate } from "@/lib/utils";
-import type { ModuleFull } from "./types";
+import type { ModuleFull, MaterialFull } from "./types";
 import {
   ModuleDialog, LessonDialog, MaterialDialog, ActivityDialog, ForumDialog, QuizDialog,
 } from "./dialogs";
 import { SubmissionsDialog } from "./submissions-dialog";
 import { QuizGradingDialog } from "./quiz-grading-dialog";
+import { ContentPreviewDialog } from "./content-preview-dialog";
 
 const MATERIAL_ICON: Record<string, typeof FileText> = {
   video: Video,
@@ -39,6 +40,7 @@ export function ModuleCard({ courseId, module: mod, index }: { courseId: string;
   const [materialDialogLesson, setMaterialDialogLesson] = useState<string | null>(null);
   const [submissionsFor, setSubmissionsFor] = useState<{ id: string; title: string; maxScore: number } | null>(null);
   const [gradingQuiz, setGradingQuiz] = useState<{ id: string; title: string } | null>(null);
+  const [previewMaterial, setPreviewMaterial] = useState<MaterialFull | null>(null);
   const [, startTransition] = useTransition();
 
   return (
@@ -129,11 +131,24 @@ export function ModuleCard({ courseId, module: mod, index }: { courseId: string;
                         <Icon className="h-3.5 w-3.5" /> {mat.title}
                         {mat.isMandatory && <span className="text-[10px]">· obligatorio</span>}
                       </span>
-                      <span className="flex items-center gap-1">
-                        <button onClick={() => startTransition(async () => toggleMaterialPublished(mat.id, !mat.published))}>
-                          {mat.published ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                      <span className="flex items-center gap-2">
+                        <button title="Ver contenido" onClick={() => setPreviewMaterial(mat)}>
+                          <Eye className="h-3.5 w-3.5" />
                         </button>
-                        <button onClick={() => startTransition(async () => { await deleteMaterial(mat.id); })}>
+                        <Badge
+                          variant={mat.published ? "success" : "secondary"}
+                          className="cursor-pointer text-[10px]"
+                          onClick={() => startTransition(async () => {
+                            const result = await toggleMaterialPublished(mat.id, !mat.published);
+                            if (!result.ok) toast.error(result.error);
+                          })}
+                        >
+                          {mat.published ? "Publicado" : "Oculto"}
+                        </Badge>
+                        <button onClick={() => startTransition(async () => {
+                          const result = await deleteMaterial(mat.id);
+                          if (!result.ok) toast.error(result.error);
+                        })}>
                           <Trash2 className="h-3.5 w-3.5 text-[var(--danger)]" />
                         </button>
                       </span>
@@ -159,7 +174,10 @@ export function ModuleCard({ courseId, module: mod, index }: { courseId: string;
               <button className="text-xs font-medium text-[var(--primary)] hover:underline" onClick={() => setSubmissionsFor({ id: a.id, title: a.title, maxScore: a.maxScore })}>
                 Ver entregas
               </button>
-              <button onClick={() => startTransition(async () => { await deleteActivity(a.id); })}>
+              <button onClick={() => startTransition(async () => {
+                const result = await deleteActivity(a.id);
+                if (!result.ok) toast.error(result.error);
+              })}>
                 <Trash2 className="h-3.5 w-3.5 text-[var(--danger)]" />
               </button>
             </span>
@@ -172,7 +190,10 @@ export function ModuleCard({ courseId, module: mod, index }: { courseId: string;
         {mod.forums.map((f) => (
           <li key={f.id} className="flex items-center justify-between rounded-lg border border-[var(--border)] px-3 py-2 text-sm">
             <span>{f.title} <span className="text-xs text-[var(--muted-foreground)]">· {f.posts.length} publicaciones</span></span>
-            <button onClick={() => startTransition(async () => { await deleteForum(f.id); })}>
+            <button onClick={() => startTransition(async () => {
+              const result = await deleteForum(f.id);
+              if (!result.ok) toast.error(result.error);
+            })}>
               <Trash2 className="h-3.5 w-3.5 text-[var(--danger)]" />
             </button>
           </li>
@@ -193,10 +214,16 @@ export function ModuleCard({ courseId, module: mod, index }: { courseId: string;
               <button className="text-xs font-medium text-[var(--primary)] hover:underline" onClick={() => setGradingQuiz({ id: q.id, title: q.title })}>
                 Corregir
               </button>
-              <Badge variant={q.published ? "success" : "secondary"} className="cursor-pointer" onClick={() => startTransition(async () => { await togglePublishQuiz(q.id, !q.published); })}>
+              <Badge variant={q.published ? "success" : "secondary"} className="cursor-pointer" onClick={() => startTransition(async () => {
+                const result = await togglePublishQuiz(q.id, !q.published);
+                if (!result.ok) toast.error(result.error);
+              })}>
                 {q.published ? "Publicada" : "Oculta"}
               </Badge>
-              <button onClick={() => startTransition(async () => { await deleteQuiz(q.id); })}>
+              <button onClick={() => startTransition(async () => {
+                const result = await deleteQuiz(q.id);
+                if (!result.ok) toast.error(result.error);
+              })}>
                 <Trash2 className="h-3.5 w-3.5 text-[var(--danger)]" />
               </button>
             </span>
@@ -214,6 +241,13 @@ export function ModuleCard({ courseId, module: mod, index }: { courseId: string;
         onOpenChange={(v) => !v && setMaterialDialogLesson(null)}
         lessonId={materialDialogLesson}
       />
+      {previewMaterial && (
+        <ContentPreviewDialog
+          open={!!previewMaterial}
+          onOpenChange={(v) => !v && setPreviewMaterial(null)}
+          material={previewMaterial}
+        />
+      )}
       {submissionsFor && (
         <SubmissionsDialog
           open={!!submissionsFor}

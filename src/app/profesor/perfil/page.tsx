@@ -8,7 +8,7 @@ import { initials } from "@/lib/utils";
 import { ProfileForm } from "@/components/profile-form";
 
 export default async function TeacherProfilePage() {
-  const authUser = await requireRole("teacher", "admin");
+  const authUser = await requireRole("teacher", "admin", "institution");
   const [user, courses] = await Promise.all([
     db.query.users.findFirst({ where: eq(schema.users.id, authUser.id) }),
     getCoursesForTeacher(authUser.id),

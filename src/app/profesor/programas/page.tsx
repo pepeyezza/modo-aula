@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ProgramsGrid } from "@/app/admin/programas/programs-grid";
 
 export default async function TeacherProgramasPage() {
-  const user = await requireRole("teacher", "admin");
+  const user = await requireRole("teacher", "admin", "institution");
 
   if (!user.institutionId) {
     return (

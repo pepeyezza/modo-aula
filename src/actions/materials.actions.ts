@@ -1,12 +1,13 @@
 "use server";
 
 import { db, schema } from "@/db";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireRole, requireUser } from "@/lib/auth-helpers";
 import { saveFile } from "@/lib/storage";
 import { markContentCompleted } from "@/lib/progress";
 import { notifyMany } from "@/lib/notifications";
+import { sanitizeContentHtml } from "@/lib/sanitize-html";
 
 const EXT_TYPE: Record<string, (typeof schema.materialTypeEnum.enumValues)[number]> = {
   pdf: "pdf",
@@ -28,71 +29,86 @@ const EXT_TYPE: Record<string, (typeof schema.materialTypeEnum.enumValues)[numbe
 };
 
 export async function createMaterial(formData: FormData) {
-  await requireRole("admin", "teacher", "institution");
-  const lessonId = String(formData.get("lessonId"));
-  const title = String(formData.get("title"));
-  const kind = String(formData.get("kind")); // "texto" | "link" | "youtube" | "archivo"
-  const content = formData.get("content") as string | null;
-  const externalUrl = formData.get("externalUrl") as string | null;
-  const isMandatory = formData.get("isMandatory") === "on";
-  const file = formData.get("file") as File | null;
+  try {
+    await requireRole("admin", "teacher", "institution");
+    const lessonId = String(formData.get("lessonId"));
+    const title = String(formData.get("title"));
+    const kind = String(formData.get("kind")); // "texto" | "link" | "youtube" | "archivo"
+    const content = formData.get("content") as string | null;
+    const externalUrl = formData.get("externalUrl") as string | null;
+    const isMandatory = formData.get("isMandatory") === "on";
+    const file = formData.get("file") as File | null;
 
-  let type: (typeof schema.materialTypeEnum.enumValues)[number] = "texto";
-  let fileUrl: string | null = null;
-  let finalExternalUrl: string | null = null;
+    let type: (typeof schema.materialTypeEnum.enumValues)[number] = "texto";
+    let fileUrl: string | null = null;
+    let finalExternalUrl: string | null = null;
 
-  if (kind === "texto") {
-    type = "texto";
-  } else if (kind === "link" || kind === "youtube") {
-    type = kind === "youtube" ? "video" : "link";
-    finalExternalUrl = externalUrl;
-  } else if (file && file.size > 0) {
-    const ext = (file.name.split(".").pop() || "").toLowerCase();
-    type = EXT_TYPE[ext] ?? "archivo";
-    const saved = await saveFile(file, `materiales/${lessonId}`);
-    fileUrl = saved.url;
+    if (kind === "texto") {
+      type = "texto";
+    } else if (kind === "link" || kind === "youtube") {
+      type = kind === "youtube" ? "video" : "link";
+      finalExternalUrl = externalUrl;
+    } else if (file && file.size > 0) {
+      const ext = (file.name.split(".").pop() || "").toLowerCase();
+      type = EXT_TYPE[ext] ?? "archivo";
+      const saved = await saveFile(file, `materiales/${lessonId}`);
+      fileUrl = saved.url;
+    }
+
+    const existing = await db.query.materials.findMany({ where: eq(schema.materials.lessonId, lessonId) });
+
+    await db.insert(schema.materials).values({
+      lessonId,
+      title,
+      type,
+      content: kind === "texto" ? sanitizeContentHtml(content ?? "") : null,
+      fileUrl,
+      externalUrl: finalExternalUrl,
+      isMandatory,
+      order: existing.length,
+    });
+
+    const lesson = await db.query.lessons.findFirst({
+      where: eq(schema.lessons.id, lessonId),
+      with: { module: { with: { course: { with: { enrollments: true } } } } },
+    });
+    if (lesson) {
+      await notifyMany(
+        lesson.module.course.enrollments.map((e) => e.userId),
+        { type: "nuevo_material", title: "Nuevo material publicado", message: `Se publicó "${title}" en ${lesson.module.course.name}.`, link: `/alumno/cursos/${lesson.module.course.id}` }
+      );
+    }
+
+    revalidatePath("/admin/cursos", "layout");
+    revalidatePath("/profesor/cursos", "layout");
+    return { ok: true as const };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
   }
-
-  const existing = await db.query.materials.findMany({ where: eq(schema.materials.lessonId, lessonId) });
-
-  await db.insert(schema.materials).values({
-    lessonId,
-    title,
-    type,
-    content: kind === "texto" ? content : null,
-    fileUrl,
-    externalUrl: finalExternalUrl,
-    isMandatory,
-    order: existing.length,
-  });
-
-  const lesson = await db.query.lessons.findFirst({
-    where: eq(schema.lessons.id, lessonId),
-    with: { module: { with: { course: { with: { enrollments: true } } } } },
-  });
-  if (lesson) {
-    await notifyMany(
-      lesson.module.course.enrollments.map((e) => e.userId),
-      { type: "nuevo_material", title: "Nuevo material publicado", message: `Se publicó "${title}" en ${lesson.module.course.name}.`, link: `/alumno/cursos/${lesson.module.course.id}` }
-    );
-  }
-
-  revalidatePath("/admin/cursos", "layout");
-  revalidatePath("/profesor/cursos", "layout");
 }
 
 export async function deleteMaterial(materialId: string) {
-  await requireRole("admin", "teacher", "institution");
-  await db.delete(schema.materials).where(eq(schema.materials.id, materialId));
-  revalidatePath("/admin/cursos", "layout");
-  revalidatePath("/profesor/cursos", "layout");
+  try {
+    await requireRole("admin", "teacher", "institution");
+    await db.delete(schema.materials).where(eq(schema.materials.id, materialId));
+    revalidatePath("/admin/cursos", "layout");
+    revalidatePath("/profesor/cursos", "layout");
+    return { ok: true as const };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
+  }
 }
 
 export async function toggleMaterialPublished(materialId: string, published: boolean) {
-  await requireRole("admin", "teacher", "institution");
-  await db.update(schema.materials).set({ published }).where(eq(schema.materials.id, materialId));
-  revalidatePath("/admin/cursos", "layout");
-  revalidatePath("/profesor/cursos", "layout");
+  try {
+    await requireRole("admin", "teacher", "institution");
+    await db.update(schema.materials).set({ published }).where(eq(schema.materials.id, materialId));
+    revalidatePath("/admin/cursos", "layout");
+    revalidatePath("/profesor/cursos", "layout");
+    return { ok: true as const };
+  } catch (err) {
+    return { ok: false as const, error: err instanceof Error ? err.message : "Ocurrió un error." };
+  }
 }
 
 export async function markMaterialViewed(materialId: string, courseId: string) {

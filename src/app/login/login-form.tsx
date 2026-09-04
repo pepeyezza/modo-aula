@@ -36,12 +36,6 @@ export function LoginForm() {
     router.refresh();
   }
 
-  function fillDemo(role: "admin" | "institucion" | "profesor" | "alumno") {
-    const form = document.getElementById("login-form") as HTMLFormElement;
-    (form.elements.namedItem("email") as HTMLInputElement).value = `${role}@capacita.demo`;
-    (form.elements.namedItem("password") as HTMLInputElement).value = "Demo1234!";
-  }
-
   return (
     <form id="login-form" onSubmit={onSubmit} className="space-y-4 rounded-xl border border-[var(--border)] bg-white p-6 shadow-sm">
       {error && (
@@ -66,21 +60,6 @@ export function LoginForm() {
         {loading && <Loader2 className="h-4 w-4 animate-spin" />}
         Ingresar
       </Button>
-
-      <div className="flex gap-2 pt-1">
-        <button type="button" onClick={() => fillDemo("admin")} className="flex-1 rounded-md border border-[var(--border)] py-1.5 text-xs hover:bg-[var(--muted)]">
-          Admin
-        </button>
-        <button type="button" onClick={() => fillDemo("institucion")} className="flex-1 rounded-md border border-[var(--border)] py-1.5 text-xs hover:bg-[var(--muted)]">
-          Institución
-        </button>
-        <button type="button" onClick={() => fillDemo("profesor")} className="flex-1 rounded-md border border-[var(--border)] py-1.5 text-xs hover:bg-[var(--muted)]">
-          Profesor
-        </button>
-        <button type="button" onClick={() => fillDemo("alumno")} className="flex-1 rounded-md border border-[var(--border)] py-1.5 text-xs hover:bg-[var(--muted)]">
-          Alumno
-        </button>
-      </div>
     </form>
   );
 }

@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 
 export default async function TeacherDashboardPage() {
-  const user = await requireRole("teacher", "admin");
+  const user = await requireRole("teacher", "admin", "institution");
   const data = await getTeacherDashboardData(user.id);
 
   return (

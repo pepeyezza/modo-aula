@@ -3,7 +3,7 @@ import { requireRole } from "@/lib/auth-helpers";
 import { QuestionBankBrowser } from "@/app/admin/banco-preguntas/question-bank-browser";
 
 export default async function TeacherBancoPreguntasPage() {
-  const user = await requireRole("teacher", "admin");
+  const user = await requireRole("teacher", "admin", "institution");
   const courses = await getCoursesForTeacher(user.id);
   return (
     <div className="space-y-6">

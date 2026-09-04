@@ -32,7 +32,7 @@ export default auth((req) => {
   if (isAdminRoute && role !== "admin") {
     return NextResponse.redirect(new URL(ROLE_HOME[role] ?? "/", nextUrl));
   }
-  if (isTeacherRoute && role !== "teacher" && role !== "admin") {
+  if (isTeacherRoute && role !== "teacher" && role !== "admin" && role !== "institution") {
     return NextResponse.redirect(new URL(ROLE_HOME[role] ?? "/", nextUrl));
   }
   if (isStudentRoute && role !== "student" && role !== "admin") {

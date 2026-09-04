@@ -55,7 +55,8 @@ function SubmissionRow({ submission, maxScore, onGraded }: { submission: Submiss
     }
     setLoading(true);
     try {
-      await gradeSubmission(submission.id, Number(grade), feedback, requestRevision);
+      const result = await gradeSubmission(submission.id, Number(grade), feedback, requestRevision);
+      if (!result.ok) throw new Error(result.error);
       toast.success("Entrega calificada");
       onGraded();
     } catch (err) {
