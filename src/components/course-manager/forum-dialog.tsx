@@ -1,17 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { createForum } from "@/actions/forums.actions";
 
 export function ForumDialog({ open, onOpenChange, moduleId }: { open: boolean; onOpenChange: (v: boolean) => void; moduleId: string }) {
   const [loading, setLoading] = useState(false);
+  const [prompt, setPrompt] = useState("");
+
+  useEffect(() => {
+    if (open) setPrompt("");
+  }, [open]);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -21,7 +26,7 @@ export function ForumDialog({ open, onOpenChange, moduleId }: { open: boolean; o
       const result = await createForum({
         moduleId,
         title: String(fd.get("title")),
-        prompt: String(fd.get("prompt") || ""),
+        prompt,
         opensAt: String(fd.get("opensAt") || "") || undefined,
         closesAt: String(fd.get("closesAt") || "") || undefined,
         allowReplies: fd.get("allowReplies") === "on",
@@ -47,7 +52,7 @@ export function ForumDialog({ open, onOpenChange, moduleId }: { open: boolean; o
           </div>
           <div className="space-y-1.5">
             <Label>Consigna</Label>
-            <Textarea name="prompt" rows={3} />
+            <RichTextEditor value={prompt} onChange={setPrompt} placeholder="De qué se trata este foro..." />
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">

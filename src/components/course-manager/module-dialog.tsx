@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { createModule, updateModule } from "@/actions/courses.actions";
 
 export function ModuleDialog({
@@ -16,13 +16,17 @@ export function ModuleDialog({
   moduleData?: { id: string; title: string; description: string | null } | null;
 }) {
   const [loading, setLoading] = useState(false);
+  const [description, setDescription] = useState("");
+
+  useEffect(() => {
+    if (open) setDescription(moduleData?.description ?? "");
+  }, [open, moduleData]);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     const fd = new FormData(e.currentTarget);
     const title = String(fd.get("title"));
-    const description = String(fd.get("description") || "");
     try {
       const result = moduleData
         ? await updateModule(moduleData.id, { title, description })
@@ -48,7 +52,7 @@ export function ModuleDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Descripción (opcional)</Label>
-            <Textarea name="description" defaultValue={moduleData?.description ?? ""} rows={2} />
+            <RichTextEditor value={description} onChange={setDescription} placeholder="Descripción del módulo..." />
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>

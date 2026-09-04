@@ -59,7 +59,9 @@ export function ForumPanel({ forum, courseId }: { forum: StudentForum; courseId:
       </button>
       {open && (
         <div className="border-t border-[var(--border)] p-3 text-sm">
-          {forum.prompt && <p className="mb-3 whitespace-pre-wrap text-[var(--muted-foreground)]">{forum.prompt}</p>}
+          {forum.prompt && (
+            <div className="prose prose-sm mb-3 max-w-none text-[var(--muted-foreground)]" dangerouslySetInnerHTML={{ __html: forum.prompt }} />
+          )}
 
           <div className="max-h-80 space-y-3 overflow-y-auto">
             {sortedPosts.map((p) => (

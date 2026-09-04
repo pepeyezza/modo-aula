@@ -7,12 +7,22 @@ import { requireRole } from "@/lib/auth-helpers";
 import { saveFile } from "@/lib/storage";
 import { markContentCompleted } from "@/lib/progress";
 import { notify, notifyMany } from "@/lib/notifications";
+import { sanitizeContentHtml } from "@/lib/sanitize-html";
+import { assertCourseAccess } from "@/actions/courses.actions";
 
 export async function createActivity(formData: FormData) {
   try {
-    await requireRole("admin", "teacher", "institution");
+    const user = await requireRole("admin", "teacher", "institution");
     const moduleId = String(formData.get("moduleId"));
+    const mod = await db.query.modules.findFirst({
+      where: eq(schema.modules.id, moduleId),
+      with: { course: { with: { enrollments: true } } },
+    });
+    if (!mod) throw new Error("Módulo no encontrado.");
+    await assertCourseAccess(user, mod.courseId);
     const title = String(formData.get("title"));
+    // `description` e `instructions` (la consigna) son texto enriquecido
+    // (HTML), igual que el contenido de un material tipo "texto".
     const description = formData.get("description") as string | null;
     const instructions = formData.get("instructions") as string | null;
     const dueDate = formData.get("dueDate") as string | null;
@@ -37,8 +47,8 @@ export async function createActivity(formData: FormData) {
       .values({
         moduleId,
         title,
-        description,
-        instructions,
+        description: description ? sanitizeContentHtml(description) : null,
+        instructions: instructions ? sanitizeContentHtml(instructions) : null,
         dueDate: dueDate ? new Date(dueDate) : null,
         maxScore,
         approvalCriteria,
@@ -47,16 +57,10 @@ export async function createActivity(formData: FormData) {
       })
       .returning();
 
-    const mod = await db.query.modules.findFirst({
-      where: eq(schema.modules.id, moduleId),
-      with: { course: { with: { enrollments: true } } },
-    });
-    if (mod) {
-      await notifyMany(
-        mod.course.enrollments.map((e) => e.userId),
-        { type: "nueva_actividad", title: "Nueva actividad", message: `Se publicó la actividad "${title}" en ${mod.course.name}.`, link: `/alumno/cursos/${mod.course.id}` }
-      );
-    }
+    await notifyMany(
+      mod.course.enrollments.map((e) => e.userId),
+      { type: "nueva_actividad", title: "Nueva actividad", message: `Se publicó la actividad "${title}" en ${mod.course.name}.`, link: `/alumno/cursos/${mod.course.id}` }
+    );
 
     revalidatePath("/admin/cursos", "layout");
     revalidatePath("/profesor/cursos", "layout");
@@ -66,13 +70,29 @@ export async function createActivity(formData: FormData) {
   }
 }
 
+async function assertActivityAccess(user: { id: string; role: string; institutionId?: string | null }, activityId: string) {
+  const activity = await db.query.activities.findFirst({ where: eq(schema.activities.id, activityId) });
+  if (!activity) throw new Error("Actividad no encontrada.");
+  const mod = await db.query.modules.findFirst({ where: eq(schema.modules.id, activity.moduleId) });
+  if (!mod) throw new Error("Módulo no encontrado.");
+  await assertCourseAccess(user, mod.courseId);
+}
+
+// `description` e `instructions` (la consigna) son texto enriquecido (HTML);
+// se sanitizan acá si vienen en la actualización.
 export async function updateActivity(activityId: string, data: Partial<{ title: string; description: string; instructions: string; dueDate: string | null; maxScore: number; approvalCriteria: string; isMandatory: boolean; published: boolean }>) {
   try {
-    await requireRole("admin", "teacher", "institution");
-    const { dueDate, ...rest } = data;
+    const user = await requireRole("admin", "teacher", "institution");
+    await assertActivityAccess(user, activityId);
+    const { dueDate, description, instructions, ...rest } = data;
     await db
       .update(schema.activities)
-      .set({ ...rest, dueDate: dueDate !== undefined ? (dueDate ? new Date(dueDate) : null) : undefined })
+      .set({
+        ...rest,
+        dueDate: dueDate !== undefined ? (dueDate ? new Date(dueDate) : null) : undefined,
+        description: description !== undefined ? (description ? sanitizeContentHtml(description) : null) : undefined,
+        instructions: instructions !== undefined ? (instructions ? sanitizeContentHtml(instructions) : null) : undefined,
+      })
       .where(eq(schema.activities.id, activityId));
     revalidatePath("/admin/cursos", "layout");
     revalidatePath("/profesor/cursos", "layout");
@@ -84,7 +104,8 @@ export async function updateActivity(activityId: string, data: Partial<{ title: 
 
 export async function deleteActivity(activityId: string) {
   try {
-    await requireRole("admin", "teacher", "institution");
+    const user = await requireRole("admin", "teacher", "institution");
+    await assertActivityAccess(user, activityId);
     await db.delete(schema.activities).where(eq(schema.activities.id, activityId));
     revalidatePath("/admin/cursos", "layout");
     revalidatePath("/profesor/cursos", "layout");

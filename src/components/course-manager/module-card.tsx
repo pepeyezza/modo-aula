@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  deleteModule, updateModule, deleteLesson, updateLesson, reorderLessons,
+  deleteModule, deleteLesson, reorderLessons,
 } from "@/actions/courses.actions";
 import { deleteMaterial, toggleMaterialPublished } from "@/actions/materials.actions";
 import { deleteActivity } from "@/actions/activities.actions";
@@ -34,6 +34,8 @@ const MATERIAL_ICON: Record<string, typeof FileText> = {
 export function ModuleCard({ courseId, module: mod, index }: { courseId: string; module: ModuleFull; index: number }) {
   const [editOpen, setEditOpen] = useState(false);
   const [lessonDialogOpen, setLessonDialogOpen] = useState(false);
+  const [editingLesson, setEditingLesson] = useState<{ id: string; title: string; description: string | null } | null>(null);
+  const [editingActivity, setEditingActivity] = useState<ModuleFull["activities"][number] | null>(null);
   const [activityDialogOpen, setActivityDialogOpen] = useState(false);
   const [forumDialogOpen, setForumDialogOpen] = useState(false);
   const [quizDialogOpen, setQuizDialogOpen] = useState(false);
@@ -54,7 +56,12 @@ export function ModuleCard({ courseId, module: mod, index }: { courseId: string;
             <h3 className="font-semibold">{mod.title}</h3>
             {!mod.published && <Badge variant="secondary">Oculto</Badge>}
           </div>
-          {mod.description && <p className="mt-1 text-sm text-[var(--muted-foreground)]">{mod.description}</p>}
+          {mod.description && (
+            <div
+              className="prose prose-sm mt-1 max-w-none text-[var(--muted-foreground)]"
+              dangerouslySetInnerHTML={{ __html: mod.description }}
+            />
+          )}
         </div>
         <div className="flex shrink-0 gap-1">
           <Button size="icon" variant="ghost" onClick={() => setEditOpen(true)}><Pencil className="h-4 w-4" /></Button>
@@ -91,6 +98,10 @@ export function ModuleCard({ courseId, module: mod, index }: { courseId: string;
               </div>
               <div className="flex items-center gap-1">
                 <Button
+                  size="icon" variant="ghost" title="Editar clase"
+                  onClick={() => setEditingLesson({ id: lesson.id, title: lesson.title, description: lesson.description })}
+                ><Pencil className="h-3.5 w-3.5" /></Button>
+                <Button
                   size="icon" variant="ghost"
                   disabled={li === 0}
                   onClick={() => startTransition(async () => {
@@ -121,6 +132,12 @@ export function ModuleCard({ courseId, module: mod, index }: { courseId: string;
                 ><Trash2 className="h-3.5 w-3.5 text-[var(--danger)]" /></Button>
               </div>
             </div>
+            {lesson.description && (
+              <div
+                className="prose prose-sm mt-1 max-w-none pl-6 text-[var(--muted-foreground)]"
+                dangerouslySetInnerHTML={{ __html: lesson.description }}
+              />
+            )}
             {lesson.materials.length > 0 && (
               <ul className="mt-2 space-y-1 pl-6">
                 {lesson.materials.map((mat) => {
@@ -168,19 +185,27 @@ export function ModuleCard({ courseId, module: mod, index }: { courseId: string;
         empty={mod.activities.length === 0}
       >
         {mod.activities.map((a) => (
-          <li key={a.id} className="flex items-center justify-between rounded-lg border border-[var(--border)] px-3 py-2 text-sm">
-            <span>{a.title} {a.dueDate && <span className="text-xs text-[var(--muted-foreground)]">· entrega {formatDate(a.dueDate)}</span>}</span>
-            <span className="flex items-center gap-3">
-              <button className="text-xs font-medium text-[var(--primary)] hover:underline" onClick={() => setSubmissionsFor({ id: a.id, title: a.title, maxScore: a.maxScore })}>
-                Ver entregas
-              </button>
-              <button onClick={() => startTransition(async () => {
-                const result = await deleteActivity(a.id);
-                if (!result.ok) toast.error(result.error);
-              })}>
-                <Trash2 className="h-3.5 w-3.5 text-[var(--danger)]" />
-              </button>
-            </span>
+          <li key={a.id} className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm">
+            <div className="flex items-center justify-between">
+              <span>{a.title} {a.dueDate && <span className="text-xs text-[var(--muted-foreground)]">· entrega {formatDate(a.dueDate)}</span>}</span>
+              <span className="flex items-center gap-3">
+                <button className="text-xs font-medium text-[var(--primary)] hover:underline" onClick={() => setSubmissionsFor({ id: a.id, title: a.title, maxScore: a.maxScore })}>
+                  Ver entregas
+                </button>
+                <button title="Editar actividad" onClick={() => setEditingActivity(a)}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+                <button onClick={() => startTransition(async () => {
+                  const result = await deleteActivity(a.id);
+                  if (!result.ok) toast.error(result.error);
+                })}>
+                  <Trash2 className="h-3.5 w-3.5 text-[var(--danger)]" />
+                </button>
+              </span>
+            </div>
+            {a.instructions && (
+              <div className="prose prose-sm mt-1 max-w-none text-[var(--muted-foreground)]" dangerouslySetInnerHTML={{ __html: a.instructions }} />
+            )}
           </li>
         ))}
       </ContentSection>
@@ -188,14 +213,19 @@ export function ModuleCard({ courseId, module: mod, index }: { courseId: string;
       {/* Foros */}
       <ContentSection title="Foros" icon={MessageSquare} onAdd={() => setForumDialogOpen(true)} empty={mod.forums.length === 0}>
         {mod.forums.map((f) => (
-          <li key={f.id} className="flex items-center justify-between rounded-lg border border-[var(--border)] px-3 py-2 text-sm">
-            <span>{f.title} <span className="text-xs text-[var(--muted-foreground)]">· {f.posts.length} publicaciones</span></span>
-            <button onClick={() => startTransition(async () => {
-              const result = await deleteForum(f.id);
-              if (!result.ok) toast.error(result.error);
-            })}>
-              <Trash2 className="h-3.5 w-3.5 text-[var(--danger)]" />
-            </button>
+          <li key={f.id} className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm">
+            <div className="flex items-center justify-between">
+              <span>{f.title} <span className="text-xs text-[var(--muted-foreground)]">· {f.posts.length} publicaciones</span></span>
+              <button onClick={() => startTransition(async () => {
+                const result = await deleteForum(f.id);
+                if (!result.ok) toast.error(result.error);
+              })}>
+                <Trash2 className="h-3.5 w-3.5 text-[var(--danger)]" />
+              </button>
+            </div>
+            {f.prompt && (
+              <div className="prose prose-sm mt-1 max-w-none text-[var(--muted-foreground)]" dangerouslySetInnerHTML={{ __html: f.prompt }} />
+            )}
           </li>
         ))}
       </ContentSection>
@@ -232,8 +262,18 @@ export function ModuleCard({ courseId, module: mod, index }: { courseId: string;
       </ContentSection>
 
       <ModuleDialog open={editOpen} onOpenChange={setEditOpen} courseId={courseId} moduleData={mod} />
-      <LessonDialog open={lessonDialogOpen} onOpenChange={setLessonDialogOpen} moduleId={mod.id} />
-      <ActivityDialog open={activityDialogOpen} onOpenChange={setActivityDialogOpen} moduleId={mod.id} />
+      <LessonDialog
+        open={lessonDialogOpen || editingLesson !== null}
+        onOpenChange={(v) => { if (!v) { setLessonDialogOpen(false); setEditingLesson(null); } }}
+        moduleId={mod.id}
+        lessonData={editingLesson}
+      />
+      <ActivityDialog
+        open={activityDialogOpen || editingActivity !== null}
+        onOpenChange={(v) => { if (!v) { setActivityDialogOpen(false); setEditingActivity(null); } }}
+        moduleId={mod.id}
+        activityData={editingActivity}
+      />
       <ForumDialog open={forumDialogOpen} onOpenChange={setForumDialogOpen} moduleId={mod.id} />
       <QuizDialog open={quizDialogOpen} onOpenChange={setQuizDialogOpen} moduleId={mod.id} courseId={courseId} />
       <MaterialDialog

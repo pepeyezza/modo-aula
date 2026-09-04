@@ -7,7 +7,11 @@ import { requireRole, requireUser } from "@/lib/auth-helpers";
 import { saveFile } from "@/lib/storage";
 import { markContentCompleted } from "@/lib/progress";
 import { notifyMany } from "@/lib/notifications";
+import { sanitizeContentHtml } from "@/lib/sanitize-html";
+import { assertCourseAccess } from "@/actions/courses.actions";
 
+// `prompt` (la consigna del foro) es texto enriquecido (HTML) — se sanitiza
+// acá antes de guardarlo, igual que el resto del contenido de una clase.
 export async function createForum(input: {
   moduleId: string;
   title: string;
@@ -18,12 +22,15 @@ export async function createForum(input: {
 }) {
   try {
     const user = await requireRole("admin", "teacher", "institution");
+    const mod = await db.query.modules.findFirst({ where: eq(schema.modules.id, input.moduleId) });
+    if (!mod) throw new Error("Módulo no encontrado.");
+    await assertCourseAccess(user, mod.courseId);
     const [forum] = await db
       .insert(schema.forums)
       .values({
         moduleId: input.moduleId,
         title: input.title,
-        prompt: input.prompt,
+        prompt: input.prompt ? sanitizeContentHtml(input.prompt) : null,
         opensAt: input.opensAt ? new Date(input.opensAt) : null,
         closesAt: input.closesAt ? new Date(input.closesAt) : null,
         allowReplies: input.allowReplies,
@@ -41,7 +48,12 @@ export async function createForum(input: {
 
 export async function deleteForum(forumId: string) {
   try {
-    await requireRole("admin", "teacher", "institution");
+    const user = await requireRole("admin", "teacher", "institution");
+    const forum = await db.query.forums.findFirst({ where: eq(schema.forums.id, forumId) });
+    if (!forum) throw new Error("Foro no encontrado.");
+    const mod = await db.query.modules.findFirst({ where: eq(schema.modules.id, forum.moduleId) });
+    if (!mod) throw new Error("Módulo no encontrado.");
+    await assertCourseAccess(user, mod.courseId);
     await db.delete(schema.forums).where(eq(schema.forums.id, forumId));
     revalidatePath("/admin/cursos", "layout");
     revalidatePath("/profesor/cursos", "layout");

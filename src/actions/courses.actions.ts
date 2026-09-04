@@ -7,6 +7,7 @@ import { z } from "zod";
 import { requireRole } from "@/lib/auth-helpers";
 import { slugify } from "@/lib/utils";
 import { logActivity } from "@/lib/audit";
+import { sanitizeContentHtml } from "@/lib/sanitize-html";
 
 const courseSchema = z.object({
   name: z.string().min(3, "El nombre es obligatorio"),
@@ -185,6 +186,8 @@ export async function deleteCourse(courseId: string) {
 }
 
 // ---- Módulos ----
+// `description` es texto enriquecido (HTML), igual que la consigna de una
+// clase — se sanitiza acá antes de guardarlo.
 export async function createModule(courseId: string, title: string, description?: string) {
   try {
     const user = await requireRole("admin", "teacher", "institution");
@@ -192,7 +195,7 @@ export async function createModule(courseId: string, title: string, description?
     const existing = await db.query.modules.findMany({ where: eq(schema.modules.courseId, courseId) });
     const [mod] = await db
       .insert(schema.modules)
-      .values({ courseId, title, description, order: existing.length })
+      .values({ courseId, title, description: description ? sanitizeContentHtml(description) : null, order: existing.length })
       .returning();
     revalidatePath(`/admin/cursos/${courseId}`);
     revalidatePath(`/profesor/cursos/${courseId}`);
@@ -208,7 +211,11 @@ export async function updateModule(moduleId: string, data: { title?: string; des
     const mod = await db.query.modules.findFirst({ where: eq(schema.modules.id, moduleId) });
     if (!mod) throw new Error("Módulo no encontrado.");
     await assertCourseAccess(user, mod.courseId);
-    await db.update(schema.modules).set(data).where(eq(schema.modules.id, moduleId));
+    const { description, ...rest } = data;
+    await db
+      .update(schema.modules)
+      .set({ ...rest, ...(description !== undefined ? { description: description ? sanitizeContentHtml(description) : null } : {}) })
+      .where(eq(schema.modules.id, moduleId));
     revalidatePath("/admin/cursos", "layout");
     revalidatePath("/profesor/cursos", "layout");
     return { ok: true as const };
@@ -248,6 +255,9 @@ export async function reorderModules(courseId: string, orderedIds: string[]) {
 }
 
 // ---- Clases (lessons) ----
+// `description` es la "consigna de la clase": texto enriquecido (HTML), igual
+// que el contenido de un material tipo "texto" — se sanitiza acá antes de
+// guardarlo, ver src/lib/sanitize-html.ts.
 export async function createLesson(moduleId: string, title: string, description?: string) {
   try {
     const user = await requireRole("admin", "teacher", "institution");
@@ -257,7 +267,12 @@ export async function createLesson(moduleId: string, title: string, description?
     const existing = await db.query.lessons.findMany({ where: eq(schema.lessons.moduleId, moduleId) });
     const [lesson] = await db
       .insert(schema.lessons)
-      .values({ moduleId, title, description, order: existing.length })
+      .values({
+        moduleId,
+        title,
+        description: description ? sanitizeContentHtml(description) : null,
+        order: existing.length,
+      })
       .returning();
     revalidatePath("/admin/cursos", "layout");
     revalidatePath("/profesor/cursos", "layout");
@@ -278,7 +293,11 @@ export async function updateLesson(
     const mod = await db.query.modules.findFirst({ where: eq(schema.modules.id, lesson.moduleId) });
     if (!mod) throw new Error("Módulo no encontrado.");
     await assertCourseAccess(user, mod.courseId);
-    await db.update(schema.lessons).set(data).where(eq(schema.lessons.id, lessonId));
+    const { description, ...rest } = data;
+    await db
+      .update(schema.lessons)
+      .set({ ...rest, ...(description !== undefined ? { description: description ? sanitizeContentHtml(description) : null } : {}) })
+      .where(eq(schema.lessons.id, lessonId));
     revalidatePath("/admin/cursos", "layout");
     revalidatePath("/profesor/cursos", "layout");
     return { ok: true as const };

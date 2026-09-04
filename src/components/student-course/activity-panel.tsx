@@ -68,7 +68,12 @@ export function ActivityPanel({ activity, courseId, submission }: { activity: St
       </button>
       {open && (
         <div className="border-t border-[var(--border)] p-3 text-sm">
-          {activity.instructions && <p className="mb-3 whitespace-pre-wrap text-[var(--muted-foreground)]">{activity.instructions}</p>}
+          {activity.description && (
+            <div className="prose prose-sm mb-2 max-w-none" dangerouslySetInnerHTML={{ __html: activity.description }} />
+          )}
+          {activity.instructions && (
+            <div className="prose prose-sm mb-3 max-w-none text-[var(--muted-foreground)]" dangerouslySetInnerHTML={{ __html: activity.instructions }} />
+          )}
           {activity.attachmentUrl && (
             <a href={activity.attachmentUrl} target="_blank" className="mb-3 flex items-center gap-1.5 text-[var(--primary)] hover:underline">
               <Paperclip className="h-3.5 w-3.5" /> Ver archivo adjunto de la consigna

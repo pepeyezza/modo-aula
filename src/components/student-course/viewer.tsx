@@ -64,12 +64,23 @@ export function StudentCourseViewer({ data }: { data: StudentCourseData }) {
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--primary-soft)] text-xs font-semibold text-[var(--primary)]">{i + 1}</span>
                   <h3 className="font-semibold">{mod.title}</h3>
                 </div>
-                {mod.description && <p className="mb-3 text-sm text-[var(--muted-foreground)]">{mod.description}</p>}
+                {mod.description && (
+                  <div
+                    className="prose prose-sm mb-3 max-w-none text-[var(--muted-foreground)]"
+                    dangerouslySetInnerHTML={{ __html: mod.description }}
+                  />
+                )}
 
                 <div className="space-y-2">
                   {mod.lessons.map((lesson) => (
                     <div key={lesson.id} className="rounded-lg border border-[var(--border)] p-3">
                       <p className="mb-1.5 text-sm font-medium">{lesson.title}</p>
+                      {lesson.description && (
+                        <div
+                          className="prose prose-sm mb-2 max-w-none text-[var(--muted-foreground)]"
+                          dangerouslySetInnerHTML={{ __html: lesson.description }}
+                        />
+                      )}
                       <ul className="space-y-1">
                         {lesson.materials.map((mat) => {
                           const Icon = MATERIAL_ICON[mat.type] ?? FileIcon;
